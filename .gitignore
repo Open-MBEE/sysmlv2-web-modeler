@@ -1,0 +1,7 @@
+*.class
+/pilot-jars
+/tests/__pycache__
+/.tmp-jar-src
+/app/__pycache__
+/.live-build
+/.tmp-extract

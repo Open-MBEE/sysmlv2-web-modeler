@@ -1,0 +1,613 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 Planetary Utilities, Inc. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SysML v2 Web Editor</title>
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --panel: #ffffff;
+      --border: #dde4ed;
+      --ink: #1e293b;
+      --muted: #64748b;
+      --accent: #0891b2;
+      --accent-dark: #0e7490;
+      --danger: #dc2626;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      background: linear-gradient(160deg, #e2eaf4 0%, var(--bg) 60%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Site header ──────────────────────────────────────── */
+    .site-header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(30, 41, 59, .06);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .site-header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 20px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    .logo-openmbee-header { height: 22px; width: auto; }
+    .brand-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .site-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -.01em;
+      white-space: nowrap;
+    }
+    .site-nav { display: flex; gap: 2px; }
+    .nav-link {
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      transition: color .12s, background .12s;
+      white-space: nowrap;
+    }
+    .nav-link:hover { color: var(--ink); background: var(--bg); }
+    .nav-link.active {
+      color: var(--accent);
+      background: rgba(8, 145, 178, .08);
+      font-weight: 600;
+    }
+
+    /* ── Page content ─────────────────────────────────────── */
+    .page-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* ── Toolbar / form ───────────────────────────────────── */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: flex-end;
+      margin-bottom: 14px;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    input, select, button { font: inherit; }
+    input, select {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    input { min-width: 160px; }
+    input:focus, select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      border-color: transparent;
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .12s;
+      background: var(--accent);
+      color: white;
+      white-space: nowrap;
+    }
+    button:hover { background: var(--accent-dark); }
+    .ctrl-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: flex-end;
+    }
+    .ctrl-sep {
+      width: 1px;
+      height: 44px;
+      background: var(--border);
+      align-self: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Status / output ──────────────────────────────────── */
+    #status {
+      min-height: 1.4em;
+      margin: 6px 0 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    #out {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      height: 72vh;
+      overflow: auto;
+      box-shadow: 0 1px 4px rgba(30, 41, 59, .05);
+    }
+    pre { white-space: pre-wrap; margin: 0; font-size: 13px; }
+
+    /* ── Site footer ──────────────────────────────────────── */
+    .site-footer {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .footer-sep { opacity: .4; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="header-brand">
+        <img src="openmbee-logo.svg" alt="OpenMBEE" class="logo-openmbee-header" />
+        <div class="brand-divider"></div>
+        <span class="site-name">SysML v2 Web Editor</span>
+      </div>
+      <nav class="site-nav">
+        <a href="/" class="nav-link active">Diagram Viewer</a>
+        <a href="/editor" class="nav-link">Text Editor</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <form id="f" class="toolbar">
+      <div class="ctrl-group">
+        <label id="baseField">Repo base URL
+          <input id="base" value="" />
+        </label>
+        <label id="tokenField">Bearer token
+          <input id="token" value="" type="password" placeholder="Bearer eyJ..." />
+        </label>
+      </div>
+      <div class="ctrl-sep"></div>
+      <div class="ctrl-group">
+        <label>Project
+          <select id="projectSelect">
+            <option value="">Select project...</option>
+          </select>
+        </label>
+        <button id="loadProjectsBtn" type="button">Load Projects</button>
+      </div>
+      <div class="ctrl-sep"></div>
+      <div class="ctrl-group">
+        <label>Branch
+          <select id="branchSelect" style="min-width:120px">
+            <option value="">Select branch...</option>
+          </select>
+        </label>
+        <button id="loadBranchesBtn" type="button">Load Branches</button>
+      </div>
+      <div class="ctrl-sep"></div>
+      <div class="ctrl-group">
+        <label>Element name
+          <input id="element" value="" placeholder="blank = top-level element" />
+        </label>
+        <label>Format
+          <select id="format">
+            <option value="svg" selected>svg</option>
+            <option value="plantuml">plantuml</option>
+            <option value="text">text</option>
+          </select>
+        </label>
+        <label>View
+          <select id="view">
+            <option value="">default</option>
+            <option value="DEFAULT">DEFAULT</option>
+            <option value="TREE">TREE</option>
+            <option value="INTERCONNECTION">INTERCONNECTION</option>
+            <option value="STATE">STATE</option>
+            <option value="ACTION">ACTION</option>
+            <option value="SEQUENCE">SEQUENCE</option>
+            <option value="MIXED">MIXED</option>
+          </select>
+        </label>
+        <label>Style
+          <select id="style">
+            <option value="">default</option>
+            <option value="DEFAULT">DEFAULT</option>
+            <option value="STDCOLOR">STDCOLOR</option>
+            <option value="PLANTUML">PLANTUML</option>
+            <option value="TB">TB</option>
+            <option value="LR">LR</option>
+            <option value="POLYLINE">POLYLINE</option>
+            <option value="ORTHOLINE">ORTHOLINE</option>
+            <option value="SHOWLIB">SHOWLIB</option>
+            <option value="SHOWINHERITED">SHOWINHERITED</option>
+            <option value="COMPMOST">COMPMOST</option>
+            <option value="COMPTREE">COMPTREE</option>
+            <option value="SHOWIMPORTED">SHOWIMPORTED</option>
+            <option value="HIDEMETADATA">HIDEMETADATA</option>
+            <option value="SHOWMETACLASS">SHOWMETACLASS</option>
+            <option value="EVAL">EVAL</option>
+            <option value="NODEMULTIPLICITY">NODEMULTIPLICITY</option>
+            <option value="EDGEMULTIPLICITY">EDGEMULTIPLICITY</option>
+            <option value="IMPLICITMULTIPLICITY">IMPLICITMULTIPLICITY</option>
+          </select>
+        </label>
+        <button type="submit">Render</button>
+      </div>
+    </form>
+
+    <div id="status"></div>
+    <div id="out"></div>
+  </main>
+
+  <footer class="site-footer">
+    <span>An OpenMBEE community project</span>
+    <span class="footer-sep">·</span>
+    <span>Apache 2.0</span>
+  </footer>
+
+  <script>
+    let lastLogId = 0;
+    let currentProjectId = "";
+    let currentBranchId = "";
+    const STORAGE_KEYS = {
+      apiBase: "sysmlviz.viewer.apiBase",
+      bearerToken: "sysmlviz.viewer.bearerToken",
+      projectId: "sysmlviz.viewer.projectId",
+      projectName: "sysmlviz.viewer.projectName",
+      branchId: "sysmlviz.viewer.branchId",
+      branchName: "sysmlviz.viewer.branchName",
+      elementName: "sysmlviz.viewer.elementName"
+    };
+
+    async function flushServerLogs() {
+      const res = await fetch("logs?after=" + encodeURIComponent(String(lastLogId)), {
+        cache: "no-store"
+      });
+      if (!res.ok) {
+        throw new Error("Failed to load server logs");
+      }
+
+      const payload = await res.json();
+      const entries = Array.isArray(payload.entries) ? payload.entries : [];
+      for (const entry of entries) {
+        console.log("[sysmlviz]", entry.timestamp, entry.message);
+      }
+      if (typeof payload.lastId === "number") {
+        lastLogId = payload.lastId;
+      }
+    }
+
+    async function loadConfig() {
+      const res = await fetch("config", { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error("Failed to load viewer config");
+      }
+      return res.json();
+    }
+
+    function applyConfig(config) {
+      const fieldMap = {
+        apiBase: "base",
+        apiToken: "token"
+      };
+
+      for (const [configKey, fieldId] of Object.entries(fieldMap)) {
+        const value = config[configKey];
+        if (typeof value === "string" && value.trim()) {
+          document.getElementById(fieldId).value = value;
+        }
+      }
+
+      document.getElementById("baseField").style.display = config.showApiBaseField === false ? "none" : "";
+      document.getElementById("tokenField").style.display = config.showBearerTokenField === false ? "none" : "";
+    }
+
+    function loadPersistedFields() {
+      const fieldMap = {
+        base: STORAGE_KEYS.apiBase,
+        token: STORAGE_KEYS.bearerToken,
+        element: STORAGE_KEYS.elementName
+      };
+      for (const [fieldId, storageKey] of Object.entries(fieldMap)) {
+        const value = localStorage.getItem(storageKey);
+        if (typeof value === "string" && value !== "") {
+          document.getElementById(fieldId).value = value;
+        }
+      }
+      currentProjectId = localStorage.getItem(STORAGE_KEYS.projectId) || "";
+      currentBranchId = localStorage.getItem(STORAGE_KEYS.branchId) || "";
+    }
+
+    function installPersistence() {
+      const fieldMap = {
+        base: STORAGE_KEYS.apiBase,
+        token: STORAGE_KEYS.bearerToken,
+        element: STORAGE_KEYS.elementName
+      };
+      for (const [fieldId, storageKey] of Object.entries(fieldMap)) {
+        document.getElementById(fieldId).addEventListener("input", (event) => {
+          localStorage.setItem(storageKey, event.target.value);
+        });
+      }
+    }
+
+    async function loadProjects() {
+      const status = document.getElementById("status");
+      const base = document.getElementById("base").value.trim();
+      const token = document.getElementById("token").value.trim();
+      const projectSelect = document.getElementById("projectSelect");
+      status.textContent = "Loading projects...";
+
+      const res = await fetch("projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiBase: base, bearerToken: token })
+      });
+      const body = await res.text();
+      await flushServerLogs();
+      if (!res.ok) {
+        status.textContent = body || "Failed to load projects";
+        return;
+      }
+
+      const payload = JSON.parse(body);
+      const projects = (Array.isArray(payload.projects) ? payload.projects : [])
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      projectSelect.innerHTML = '<option value="">Select project...</option>';
+      let selectedProjectFound = false;
+      for (const project of projects) {
+        const option = document.createElement("option");
+        option.value = project.name || "";
+        option.dataset.projectId = project.id || "";
+        option.textContent = project.name && project.id
+          ? `${project.name} (${project.id})`
+          : (project.name || project.id || "(unnamed)");
+        projectSelect.appendChild(option);
+        if (currentProjectId && option.dataset.projectId === currentProjectId) {
+          option.selected = true;
+          selectedProjectFound = true;
+        }
+      }
+      if (!selectedProjectFound) {
+        if (currentProjectId) {
+          currentProjectId = "";
+          localStorage.removeItem(STORAGE_KEYS.projectId);
+        }
+        if (projects.length === 1) {
+          const onlyOption = projectSelect.options[1];
+          if (onlyOption) {
+            onlyOption.selected = true;
+            currentProjectId = onlyOption.dataset.projectId || "";
+            if (currentProjectId) localStorage.setItem(STORAGE_KEYS.projectId, currentProjectId);
+          }
+        }
+      }
+      status.textContent = `Found ${projects.length} projects.`;
+      if (currentProjectId) {
+        await loadBranches();
+      }
+    }
+
+    async function loadBranches() {
+      const status = document.getElementById("status");
+      const base = document.getElementById("base").value.trim();
+      const token = document.getElementById("token").value.trim();
+      const branchSelect = document.getElementById("branchSelect");
+      if (!currentProjectId) {
+        status.textContent = "Select a project first.";
+        return;
+      }
+      status.textContent = "Loading branches...";
+
+      const res = await fetch("branches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiBase: base, bearerToken: token, projectId: currentProjectId })
+      });
+      const body = await res.text();
+      await flushServerLogs();
+      if (!res.ok) {
+        status.textContent = body || "Failed to load branches";
+        return;
+      }
+
+      const payload = JSON.parse(body);
+      const branches = (Array.isArray(payload.branches) ? payload.branches : [])
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      branchSelect.innerHTML = '<option value="">Select branch...</option>';
+      let selectedBranchFound = false;
+      for (const branch of branches) {
+        const option = document.createElement("option");
+        option.value = branch.name || "";
+        option.dataset.branchId = branch.id || "";
+        option.textContent = branch.name || "(unnamed)";
+        branchSelect.appendChild(option);
+        if (currentBranchId && option.dataset.branchId === currentBranchId) {
+          option.selected = true;
+          selectedBranchFound = true;
+        }
+      }
+      if (!selectedBranchFound && currentBranchId) {
+        currentBranchId = "";
+        localStorage.removeItem(STORAGE_KEYS.branchId);
+        localStorage.removeItem(STORAGE_KEYS.branchName);
+      }
+      status.textContent = `Found ${branches.length} branches.`;
+    }
+
+    async function render() {
+      const base    = document.getElementById("base").value.trim();
+      const projectId = currentProjectId.trim();
+      const branch  = document.getElementById("branchSelect").value.trim();
+      const element = document.getElementById("element").value.trim();
+      const format  = document.getElementById("format").value;
+      const view    = document.getElementById("view").value;
+      const style   = document.getElementById("style").value;
+      const status  = document.getElementById("status");
+      const out     = document.getElementById("out");
+
+      const qs = new URLSearchParams({
+        apiBase: base,
+        element: element,
+        format: format
+      });
+      if (projectId) qs.set("projectId", projectId);
+      if (branch) qs.set("branchName", branch);
+      if (view) qs.set("view", view);
+      if (style) qs.set("style", style);
+
+      status.textContent = "Rendering…";
+      out.innerHTML = "";
+
+      const res = await fetch("render?" + qs.toString());
+      const text = await res.text();
+      await flushServerLogs();
+
+      if (!res.ok) {
+        status.textContent = "Error";
+        out.innerHTML = "<pre>" + escapeHtml(text) + "</pre>";
+        return;
+      }
+
+      status.textContent = "";
+
+      if (format === "svg") {
+        out.innerHTML = text;
+
+        const svgEl = out.querySelector("svg");
+        if (svgEl) {
+          svgEl.setAttribute("width", "100%");
+          svgEl.setAttribute("height", "100%");
+          svgEl.removeAttribute("style");
+
+          if (window.__panZoom) window.__panZoom.destroy();
+          window.__panZoom = svgPanZoom(svgEl, {
+            zoomEnabled: true,
+            controlIconsEnabled: true,
+            fit: true,
+            center: true,
+            minZoom: 0.1,
+            maxZoom: 20
+          });
+        }
+      } else {
+        out.innerHTML = "<pre>" + escapeHtml(text) + "</pre>";
+      }
+    }
+
+    function escapeHtml(s) {
+      return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    document.getElementById("f").addEventListener("submit", (e) => {
+      e.preventDefault();
+      render();
+    });
+    document.getElementById("loadProjectsBtn").addEventListener("click", () => {
+      loadProjects().catch((err) => {
+        document.getElementById("status").textContent = err.message || String(err);
+      });
+    });
+    document.getElementById("loadBranchesBtn").addEventListener("click", () => {
+      loadBranches().catch((err) => {
+        document.getElementById("status").textContent = err.message || String(err);
+      });
+    });
+    document.getElementById("projectSelect").addEventListener("change", (event) => {
+      const option = event.target.selectedOptions[0];
+      currentProjectId = option ? (option.dataset.projectId || "") : "";
+      if (currentProjectId) {
+        localStorage.setItem(STORAGE_KEYS.projectId, currentProjectId);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.projectId);
+      }
+      currentBranchId = "";
+      localStorage.removeItem(STORAGE_KEYS.branchId);
+      localStorage.removeItem(STORAGE_KEYS.branchName);
+      document.getElementById("branchSelect").innerHTML = '<option value="">Select branch...</option>';
+      if (currentProjectId) {
+        loadBranches().catch((err) => {
+          document.getElementById("status").textContent = err.message || String(err);
+        });
+      }
+    });
+    document.getElementById("branchSelect").addEventListener("change", (event) => {
+      const option = event.target.selectedOptions[0];
+      currentBranchId = option ? (option.dataset.branchId || "") : "";
+      const branchName = option ? (option.value || "") : "";
+      if (currentBranchId) {
+        localStorage.setItem(STORAGE_KEYS.branchId, currentBranchId);
+        localStorage.setItem(STORAGE_KEYS.branchName, branchName);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.branchId);
+        localStorage.removeItem(STORAGE_KEYS.branchName);
+      }
+    });
+
+    (async () => {
+      const status = document.getElementById("status");
+      try {
+        installPersistence();
+        loadPersistedFields();
+        await flushServerLogs();
+        const config = await loadConfig();
+        applyConfig(config);
+        await flushServerLogs();
+        if (currentProjectId) {
+          await loadBranches();
+        }
+      } catch (err) {
+        status.textContent = err.message || String(err);
+        console.error("[sysmlviz]", err);
+      }
+    })();
+  </script>
+</body>
+</html>

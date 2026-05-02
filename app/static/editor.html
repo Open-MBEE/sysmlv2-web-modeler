@@ -1,0 +1,781 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 Planetary Utilities, Inc. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SysML v2 Web Editor</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --panel: #ffffff;
+      --border: #dde4ed;
+      --ink: #1e293b;
+      --muted: #64748b;
+      --accent: #0891b2;
+      --accent-dark: #0e7490;
+      --danger: #dc2626;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      background: linear-gradient(160deg, #e2eaf4 0%, var(--bg) 60%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Site header ──────────────────────────────────────── */
+    .site-header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(30, 41, 59, .06);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .site-header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 20px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    .logo-openmbee-header { height: 22px; width: auto; }
+    .brand-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .site-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -.01em;
+      white-space: nowrap;
+    }
+    .site-nav { display: flex; gap: 2px; }
+    .nav-link {
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      transition: color .12s, background .12s;
+      white-space: nowrap;
+    }
+    .nav-link:hover { color: var(--ink); background: var(--bg); }
+    .nav-link.active {
+      color: var(--accent);
+      background: rgba(8, 145, 178, .08);
+      font-weight: 600;
+    }
+
+    /* ── Page content ─────────────────────────────────────── */
+    .page-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* ── Toolbar / form controls ──────────────────────────── */
+    .toolbar, .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      margin-bottom: 14px;
+      align-items: flex-end;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    input, textarea, button, select { font: inherit; }
+    input, textarea {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+    input:focus, textarea:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      border-color: transparent;
+    }
+    input { min-width: 180px; }
+    textarea {
+      width: 100%;
+      min-height: 58vh;
+      resize: vertical;
+      font-family: "Cascadia Code", Consolas, monospace;
+      line-height: 1.45;
+    }
+
+    /* ── Code editor shell ────────────────────────────────── */
+    .editor-shell {
+      position: relative;
+      width: 100%;
+      min-height: 58vh;
+    }
+    .editor-shell textarea,
+    .editor-shell pre {
+      box-sizing: border-box;
+      margin: 0;
+      width: 100%;
+      min-height: 58vh;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow: auto;
+      tab-size: 2;
+    }
+    .editor-shell textarea {
+      position: relative;
+      z-index: 2;
+      background: transparent;
+      color: transparent;
+      caret-color: var(--ink);
+    }
+    .editor-shell textarea::selection {
+      background: rgba(8, 145, 178, 0.18);
+    }
+    .editor-shell pre {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--ink);
+    }
+    .tok-keyword { color: #9f1239; font-weight: 600; }
+    .tok-comment { color: #64748b; font-style: italic; }
+    .tok-string  { color: #0369a1; }
+
+    /* ── Buttons ──────────────────────────────────────────── */
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .12s;
+      background: var(--accent);
+      color: white;
+      white-space: nowrap;
+    }
+    button:hover { background: var(--accent-dark); }
+    .ctrl-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: flex-end;
+    }
+    .ctrl-sep {
+      width: 1px;
+      height: 44px;
+      background: var(--border);
+      align-self: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Status / diagnostics ─────────────────────────────── */
+    #status {
+      min-height: 1.4em;
+      margin: 6px 0 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    #status.error { color: var(--danger); }
+    #diagnostics {
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      white-space: pre-wrap;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 13px;
+      min-height: 8em;
+      box-shadow: 0 1px 4px rgba(30, 41, 59, .05);
+    }
+
+    /* ── Site footer ──────────────────────────────────────── */
+    .site-footer {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .footer-sep { opacity: .4; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="header-brand">
+        <img src="openmbee-logo.svg" alt="OpenMBEE" class="logo-openmbee-header" />
+        <div class="brand-divider"></div>
+        <span class="site-name">SysML v2 Web Editor</span>
+      </div>
+      <nav class="site-nav">
+        <a href="/" class="nav-link">Diagram Viewer</a>
+        <a href="/editor" class="nav-link active">Text Editor</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-content">
+  <div class="toolbar">
+    <div class="ctrl-group">
+      <label id="baseField">Repo base URL
+        <input id="base" value="" />
+      </label>
+      <label id="tokenField">Bearer token
+        <input id="token" value="" type="password" placeholder="Bearer eyJ..." />
+      </label>
+    </div>
+    <div class="ctrl-sep"></div>
+    <div class="ctrl-group">
+      <label>Project
+        <select id="projectSelect">
+          <option value="">Select project...</option>
+        </select>
+      </label>
+      <button id="loadProjectsBtn" type="button">Load Projects</button>
+      <label>New project name
+        <input id="newProjectName" value="" placeholder="test_rka_002" />
+      </label>
+      <label>New project description
+        <input id="newProjectDescription" value="" placeholder="A project created via the editor" />
+      </label>
+      <button id="createProjectBtn" type="button">Create Project</button>
+    </div>
+    <div class="ctrl-sep"></div>
+    <div class="ctrl-group">
+      <label>Branch
+        <select id="branchSelect" style="min-width:120px">
+          <option value="">Select branch...</option>
+        </select>
+      </label>
+      <button id="loadBranchesBtn" type="button">Load Branches</button>
+      <label>New branch name
+        <input id="newBranchName" placeholder="branch name" />
+      </label>
+      <button id="createBranchBtn" type="button">Create Branch</button>
+    </div>
+    <div class="ctrl-sep"></div>
+    <div class="ctrl-group">
+      <label>Root element
+        <input id="element" value="" placeholder="blank = top-level element" />
+      </label>
+      <label>Commit message
+        <input id="commitMessage" value="Replace model from textual editor" />
+      </label>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="loadBtn" type="button">Load</button>
+    <button id="validateBtn" type="button">Validate</button>
+    <button id="commitBtn" type="button">Commit Replace</button>
+    <button id="renderBtn" type="button">Render Diagram</button>
+  </div>
+
+  <div id="status"></div>
+  <div class="editor-shell">
+    <pre id="highlightedText" aria-hidden="true"></pre>
+    <textarea id="modelText" spellcheck="false"></textarea>
+  </div>
+  <div id="diagnostics"></div>
+  </main>
+
+  <footer class="site-footer">
+    <span>An OpenMBEE community project</span>
+    <span class="footer-sep">·</span>
+    <span>Apache 2.0</span>
+  </footer>
+
+  <script>
+    let currentProjectId = "";
+    let currentBranchId = "";
+    const STORAGE_KEYS = {
+      apiBase: "sysmlviz.editor.apiBase",
+      bearerToken: "sysmlviz.editor.bearerToken",
+      projectId: "sysmlviz.editor.projectId",
+      branchId: "sysmlviz.editor.branchId",
+      branchName: "sysmlviz.editor.branchName",
+      elementName: "sysmlviz.editor.elementName",
+      commitMessage: "sysmlviz.editor.commitMessage",
+      newProjectName: "sysmlviz.editor.newProjectName",
+      newProjectDescription: "sysmlviz.editor.newProjectDescription"
+    };
+    const SYSML_KEYWORDS = new Set([
+      "about", "abstract", "accept", "action", "actor", "after", "alias", "all", "allocate", "allocation",
+      "analysis", "and", "as", "assert", "assign", "assume", "at", "attribute", "bind", "binding", "by", "calc",
+      "case", "comment", "concern", "connect", "connection", "constant", "constraint", "crosses", "decide",
+      "def", "default", "defined", "dependency", "derived", "do", "doc", "else", "end", "entry", "enum",
+      "event", "exhibit", "exit", "expose", "false", "filter", "first", "flow", "for", "fork", "frame", "from",
+      "hastype", "if", "implies", "import", "in", "include", "individual", "inout", "interface", "istype",
+      "item", "join", "language", "library", "locale", "loop", "merge", "message", "meta", "metadata",
+      "nonunique", "not", "null", "objective", "occurrence", "of", "or", "ordered", "out", "package", "parallel",
+      "part", "perform", "port", "private", "protected", "public", "redefines", "ref", "references", "render",
+      "rendering", "rep", "require", "requirement", "return", "satisfy", "send", "snapshot", "specializes",
+      "stakeholder", "standard", "state", "subject", "subsets", "succession", "terminate", "then", "timeslice",
+      "to", "transition", "true", "until", "use", "variant", "variation", "verification", "verify", "via",
+      "view", "viewpoint", "when", "while", "xor"
+    ]);
+
+    async function loadConfig() {
+      const res = await fetch("config", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to load config");
+      return res.json();
+    }
+
+    function applyConfig(config) {
+      if (!document.getElementById("base").value.trim() && config.apiBase) {
+        document.getElementById("base").value = config.apiBase;
+      }
+      if (!document.getElementById("token").value.trim() && config.apiToken) {
+        document.getElementById("token").value = config.apiToken;
+      }
+      document.getElementById("baseField").style.display = config.showApiBaseField === false ? "none" : "";
+      document.getElementById("tokenField").style.display = config.showBearerTokenField === false ? "none" : "";
+    }
+
+    function setStatus(message, isError) {
+      const status = document.getElementById("status");
+      status.textContent = message || "";
+      status.className = isError ? "error" : "";
+    }
+
+    function diagnosticsText(payload) {
+      if (!payload) return "";
+      const blocks = [];
+      if (payload.exception) {
+        blocks.push("Exception:\n" + payload.exception);
+      }
+      const allIssues = Array.isArray(payload.issues) ? payload.issues : [];
+      if (!allIssues.length) {
+        blocks.push("No validation issues.");
+      } else {
+        blocks.push(allIssues.map((issue) => {
+          const line = issue.line > 0 ? issue.line : "?";
+          const column = issue.column > 0 ? issue.column : "?";
+          return `[${issue.severity}] ${line}:${column} ${issue.message}`;
+        }).join("\n"));
+      }
+      return blocks.join("\n\n");
+    }
+
+    function requestPayload() {
+      return {
+        apiBase: document.getElementById("base").value.trim(),
+        bearerToken: document.getElementById("token").value.trim(),
+        projectId: currentProjectId.trim(),
+        branchName: document.getElementById("branchSelect").value.trim(),
+        modelText: document.getElementById("modelText").value,
+        commitMessage: document.getElementById("commitMessage").value.trim()
+      };
+    }
+
+    async function loadProjects() {
+      setStatus("Loading projects...", false);
+      const res = await fetch("projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiBase: document.getElementById("base").value.trim(),
+          bearerToken: document.getElementById("token").value.trim()
+        })
+      });
+      const body = await res.text();
+      if (!res.ok) {
+        setStatus(body || "Failed to load projects", true);
+        return;
+      }
+
+      const payload = JSON.parse(body);
+      const projects = (Array.isArray(payload.projects) ? payload.projects : [])
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      const projectSelect = document.getElementById("projectSelect");
+      projectSelect.innerHTML = '<option value="">Select project...</option>';
+      let selectedProjectFound = false;
+      for (const project of projects) {
+        const option = document.createElement("option");
+        option.value = project.name || "";
+        option.dataset.projectId = project.id || "";
+        option.textContent = project.name && project.id
+          ? `${project.name} (${project.id})`
+          : (project.name || project.id || "(unnamed)");
+        projectSelect.appendChild(option);
+        if (currentProjectId && option.dataset.projectId === currentProjectId) {
+          option.selected = true;
+          selectedProjectFound = true;
+        }
+      }
+      if (!selectedProjectFound) {
+        if (currentProjectId) {
+          currentProjectId = "";
+          localStorage.removeItem(STORAGE_KEYS.projectId);
+        }
+        if (projects.length === 1) {
+          const onlyOption = projectSelect.options[1];
+          if (onlyOption) {
+            onlyOption.selected = true;
+            currentProjectId = onlyOption.dataset.projectId || "";
+            if (currentProjectId) localStorage.setItem(STORAGE_KEYS.projectId, currentProjectId);
+          }
+        }
+      }
+      setStatus(`Found ${projects.length} projects.`, false);
+      if (currentProjectId) {
+        await loadBranches();
+      }
+      return projects;
+    }
+
+    async function loadBranches() {
+      if (!currentProjectId) { setStatus("Select a project first.", true); return; }
+      setStatus("Loading branches...", false);
+      const res = await fetch("branches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiBase: document.getElementById("base").value.trim(),
+          bearerToken: document.getElementById("token").value.trim(),
+          projectId: currentProjectId
+        })
+      });
+      const body = await res.text();
+      if (!res.ok) { setStatus(body || "Failed to load branches", true); return; }
+
+      const payload = JSON.parse(body);
+      const branches = (Array.isArray(payload.branches) ? payload.branches : [])
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      const branchSelect = document.getElementById("branchSelect");
+      branchSelect.innerHTML = '<option value="">Select branch...</option>';
+      let selectedBranchFound = false;
+      for (const branch of branches) {
+        const option = document.createElement("option");
+        option.value = branch.name || "";
+        option.dataset.branchId = branch.id || "";
+        option.textContent = branch.name || "(unnamed)";
+        branchSelect.appendChild(option);
+        if (currentBranchId && option.dataset.branchId === currentBranchId) {
+          option.selected = true;
+          selectedBranchFound = true;
+        }
+      }
+      if (!selectedBranchFound && currentBranchId) {
+        currentBranchId = "";
+        localStorage.removeItem(STORAGE_KEYS.branchId);
+        localStorage.removeItem(STORAGE_KEYS.branchName);
+      }
+      setStatus(`Found ${branches.length} branches.`, false);
+    }
+
+    async function createBranchFromLatest() {
+      const branchSelect = document.getElementById("branchSelect");
+      const newName = document.getElementById("newBranchName").value.trim();
+      if (!currentProjectId) { setStatus("Select a project first.", true); return; }
+      if (!currentBranchId) { setStatus("Select a source branch first.", true); return; }
+      if (!newName) { setStatus("Enter a new branch name.", true); return; }
+
+      setStatus("Creating branch...", false);
+      const res = await fetch("branches/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiBase: document.getElementById("base").value.trim(),
+          bearerToken: document.getElementById("token").value.trim(),
+          projectId: currentProjectId, branchName: newName, fromBranchId: currentBranchId
+        })
+      });
+      const body = await res.text();
+      if (!res.ok) { setStatus(body || "Failed to create branch", true); return; }
+      document.getElementById("newBranchName").value = "";
+      setStatus(`Branch "${newName}" created. Reloading branches...`, false);
+      await loadBranches();
+      const newOption = Array.from(branchSelect.options).find(o => o.value === newName);
+      if (newOption) {
+        newOption.selected = true;
+        branchSelect.dispatchEvent(new Event("change"));
+      }
+    }
+
+    async function createProject() {
+      const projectName = document.getElementById("newProjectName").value.trim();
+      const description = document.getElementById("newProjectDescription").value.trim();
+      if (!projectName) {
+        setStatus("Enter a new project name.", true);
+        return;
+      }
+      setStatus("Creating project...", false);
+      const res = await fetch("projects/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiBase: document.getElementById("base").value.trim(),
+          bearerToken: document.getElementById("token").value.trim(),
+          projectName,
+          description
+        })
+      });
+      const body = await res.text();
+      if (!res.ok) {
+        setStatus(body || "Failed to create project", true);
+        return;
+      }
+      const created = JSON.parse(body);
+      const createdId = created["@id"] || created.id || "";
+      await loadProjects();
+      const projectSelect = document.getElementById("projectSelect");
+      for (const option of projectSelect.options) {
+        if ((option.dataset.projectId || "") === createdId) {
+          projectSelect.value = option.value;
+          projectSelect.dispatchEvent(new Event("change"));
+          break;
+        }
+      }
+      document.getElementById("diagnostics").textContent = JSON.stringify(created, null, 2);
+      setStatus(`Project created: ${projectName}`, false);
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function highlightModelText(text) {
+      const pattern = /("([^"\\]|\\.)*")|(\/\/[^\n]*)|(\b[A-Za-z_][A-Za-z0-9_]*\b)/g;
+      let cursor = 0;
+      let output = "";
+      for (const match of text.matchAll(pattern)) {
+        const token = match[0];
+        const start = match.index || 0;
+        output += escapeHtml(text.slice(cursor, start));
+        if (token.startsWith("\"")) {
+          output += `<span class="tok-string">${escapeHtml(token)}</span>`;
+        } else if (token.startsWith("//")) {
+          output += `<span class="tok-comment">${escapeHtml(token)}</span>`;
+        } else if (SYSML_KEYWORDS.has(token)) {
+          output += `<span class="tok-keyword">${escapeHtml(token)}</span>`;
+        } else {
+          output += escapeHtml(token);
+        }
+        cursor = start + token.length;
+      }
+      output += escapeHtml(text.slice(cursor));
+      return output || " ";
+    }
+
+    function syncHighlight() {
+      const textarea = document.getElementById("modelText");
+      const highlighted = document.getElementById("highlightedText");
+      highlighted.innerHTML = highlightModelText(textarea.value.endsWith("\n")
+        ? textarea.value + " "
+        : textarea.value || " ");
+      highlighted.scrollTop = textarea.scrollTop;
+      highlighted.scrollLeft = textarea.scrollLeft;
+    }
+
+    function loadPersistedFields() {
+      const fieldMap = {
+        base: STORAGE_KEYS.apiBase,
+        token: STORAGE_KEYS.bearerToken,
+        element: STORAGE_KEYS.elementName,
+        commitMessage: STORAGE_KEYS.commitMessage,
+        newProjectName: STORAGE_KEYS.newProjectName,
+        newProjectDescription: STORAGE_KEYS.newProjectDescription
+      };
+
+      for (const [fieldId, storageKey] of Object.entries(fieldMap)) {
+        const value = localStorage.getItem(storageKey);
+        if (typeof value === "string" && value !== "") {
+          document.getElementById(fieldId).value = value;
+        }
+      }
+      currentProjectId = localStorage.getItem(STORAGE_KEYS.projectId) || "";
+      currentBranchId = localStorage.getItem(STORAGE_KEYS.branchId) || "";
+    }
+
+    function installPersistence() {
+      const fieldMap = {
+        base: STORAGE_KEYS.apiBase,
+        token: STORAGE_KEYS.bearerToken,
+        element: STORAGE_KEYS.elementName,
+        commitMessage: STORAGE_KEYS.commitMessage,
+        newProjectName: STORAGE_KEYS.newProjectName,
+        newProjectDescription: STORAGE_KEYS.newProjectDescription
+      };
+
+      for (const [fieldId, storageKey] of Object.entries(fieldMap)) {
+        document.getElementById(fieldId).addEventListener("input", (event) => {
+          localStorage.setItem(storageKey, event.target.value);
+        });
+      }
+    }
+
+    async function loadTextModel() {
+      const qs = new URLSearchParams({
+        apiBase: document.getElementById("base").value.trim(),
+        element: document.getElementById("element").value.trim()
+      });
+      const projectId = currentProjectId.trim();
+      if (projectId) qs.set("projectId", projectId);
+      const branch = document.getElementById("branchSelect").value.trim();
+      if (branch) qs.set("branchName", branch);
+
+      setStatus("Loading text model...", false);
+      const res = await fetch("textual?" + qs.toString(), { cache: "no-store" });
+      const text = await res.text();
+      if (!res.ok) {
+        setStatus(text, true);
+        return;
+      }
+      document.getElementById("modelText").value = text;
+      syncHighlight();
+      document.getElementById("diagnostics").textContent = "Loaded textual model.";
+      setStatus("", false);
+    }
+
+    async function validateTextModel() {
+      setStatus("Validating...", false);
+      const res = await fetch("textual/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestPayload())
+      });
+      const body = await res.text();
+      if (!res.ok) {
+        setStatus(body, true);
+        return;
+      }
+      const payload = JSON.parse(body);
+      document.getElementById("diagnostics").textContent = diagnosticsText(payload);
+      setStatus(payload.ok ? "Validation passed." : "Validation failed.", !payload.ok);
+    }
+
+    async function commitTextModel() {
+      setStatus("Committing replacement model...", false);
+      const res = await fetch("textual/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestPayload())
+      });
+      const body = await res.text();
+      if (!res.ok) {
+        try {
+          const payload = JSON.parse(body);
+          document.getElementById("diagnostics").textContent = diagnosticsText(payload.validation || payload);
+        } catch (_) {
+          document.getElementById("diagnostics").textContent = body;
+        }
+        setStatus("Commit failed.", true);
+        return;
+      }
+      const payload = JSON.parse(body);
+      document.getElementById("diagnostics").textContent = JSON.stringify(payload.commit, null, 2);
+      setStatus("Commit posted successfully.", false);
+    }
+
+    function openDiagramViewer() {
+      const qs = new URLSearchParams({
+        apiBase: document.getElementById("base").value.trim(),
+        branchName: document.getElementById("branchSelect").value.trim(),
+        element: document.getElementById("element").value.trim(),
+        format: "svg"
+      });
+      const projectId = currentProjectId.trim();
+      if (projectId) qs.set("projectId", projectId);
+      window.open("/?" + qs.toString(), "_blank");
+    }
+
+    document.getElementById("loadBtn").addEventListener("click", () => loadTextModel().catch((err) => setStatus(err.message || String(err), true)));
+    document.getElementById("loadProjectsBtn").addEventListener("click", () => loadProjects().catch((err) => setStatus(err.message || String(err), true)));
+    document.getElementById("createProjectBtn").addEventListener("click", () => createProject().catch((err) => setStatus(err.message || String(err), true)));
+    document.getElementById("loadBranchesBtn").addEventListener("click", () => loadBranches().catch((err) => setStatus(err.message || String(err), true)));
+    document.getElementById("createBranchBtn").addEventListener("click", () => createBranchFromLatest().catch((err) => setStatus(err.message || String(err), true)));
+    document.getElementById("validateBtn").addEventListener("click", () => validateTextModel().catch((err) => setStatus(err.message || String(err), true)));
+    document.getElementById("commitBtn").addEventListener("click", () => commitTextModel().catch((err) => setStatus(err.message || String(err), true)));
+    document.getElementById("renderBtn").addEventListener("click", openDiagramViewer);
+    document.getElementById("projectSelect").addEventListener("change", (event) => {
+      const option = event.target.selectedOptions[0];
+      currentProjectId = option ? (option.dataset.projectId || "") : "";
+      if (currentProjectId) {
+        localStorage.setItem(STORAGE_KEYS.projectId, currentProjectId);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.projectId);
+      }
+      currentBranchId = "";
+      localStorage.removeItem(STORAGE_KEYS.branchId);
+      localStorage.removeItem(STORAGE_KEYS.branchName);
+      document.getElementById("branchSelect").innerHTML = '<option value="">Select branch...</option>';
+      if (currentProjectId) {
+        loadBranches().catch((err) => setStatus(err.message || String(err), true));
+      }
+    });
+    document.getElementById("branchSelect").addEventListener("change", (event) => {
+      const option = event.target.selectedOptions[0];
+      currentBranchId = option ? (option.dataset.branchId || "") : "";
+      const branchName = option ? (option.value || "") : "";
+      if (currentBranchId) {
+        localStorage.setItem(STORAGE_KEYS.branchId, currentBranchId);
+        localStorage.setItem(STORAGE_KEYS.branchName, branchName);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.branchId);
+        localStorage.removeItem(STORAGE_KEYS.branchName);
+      }
+    });
+    document.getElementById("modelText").addEventListener("input", syncHighlight);
+    document.getElementById("modelText").addEventListener("scroll", syncHighlight);
+
+    (async () => {
+      try {
+        installPersistence();
+        loadPersistedFields();
+        const config = await loadConfig();
+        applyConfig(config);
+        syncHighlight();
+        if (currentProjectId) {
+          await loadBranches();
+        }
+      } catch (err) {
+        setStatus(err.message || String(err), true);
+      }
+    })();
+  </script>
+</body>
+</html>

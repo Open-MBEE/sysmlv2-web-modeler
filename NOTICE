@@ -1,0 +1,91 @@
+sysmlv2viz
+==========
+
+Copyright 2026 Planetary Utilities, Inc.
+
+This product is contributed by Planetary Utilities to the OpenMBEE
+community and is licensed under the Apache License, Version 2.0.
+
+This product bundles, in source builds and Docker images, the following
+third-party components. Each retains its own license terms; the
+attributions below comply with the upstream license obligations.
+
+
+SysML v2 Pilot Implementation
+-----------------------------
+
+  Upstream:    https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation
+  License:     LGPL-3.0-or-later (with dual GPL-3.0-or-later option)
+  Used as:     Library on classpath. Source jars are produced by the
+               upstream Maven/Tycho build inside this repository's
+               Dockerfile (stage `pilot-build`). The resulting jars are
+               placed at /opt/pilot/*.jar in the runtime image.
+
+  This product uses the SysML v2 Pilot Implementation as a library, on
+  the Java classpath, without modification. Per LGPL-3.0 §4, the
+  bundled library may be replaced by the user with a modified version:
+  mount or copy alternative jars over /opt/pilot/ in the runtime image.
+
+  See LICENSE-LGPL for the LGPL-3.0 license text. The corresponding
+  source for the bundled jars is the upstream repository at the commit
+  pinned in this repository's `.pilot-version` file.
+
+  This product also bundles the SysML/KerML standard library files
+  found at /opt/sysml.library/ in the runtime image. These files are
+  redistributed verbatim from the upstream Pilot Implementation
+  repository under LGPL-3.0-or-later.
+
+
+Eclipse Temurin (OpenJDK)
+-------------------------
+
+  Upstream:    https://adoptium.net/temurin/
+  License:     GPL-2.0-only WITH Classpath-exception-2.0
+  Used as:     Base container image (eclipse-temurin:21-jdk for build,
+               eclipse-temurin:21-jre for runtime).
+
+
+Graphviz
+--------
+
+  Upstream:    https://graphviz.org/
+  License:     EPL-1.0
+  Used as:     Runtime dependency for diagram layout. Installed via
+               apt-get in the runtime container.
+
+
+Python (CPython)
+----------------
+
+  Upstream:    https://www.python.org/
+  License:     PSF-2.0
+  Used as:     Runtime for the bridge scripts in app/ that talk to the
+               remote SysML v2 API.
+
+
+GSON
+----
+
+  Upstream:    https://github.com/google/gson
+  License:     Apache-2.0
+  Used as:     JSON serialization in the Java server. Provided
+               transitively by the Pilot Implementation jars.
+
+
+svg-pan-zoom
+------------
+
+  Upstream:    https://github.com/bumbu/svg-pan-zoom
+  License:     BSD-2-Clause
+  Used as:     Browser-side SVG pan/zoom in the diagram viewer page.
+               Loaded from cdn.jsdelivr.net at runtime; not vendored
+               in this repository.
+
+
+SysML v2 Submission Team materials
+----------------------------------
+
+  The SysML v2 specification, KerML specification, and the standard
+  library content are products of the Object Management Group (OMG)
+  SysML v2 Submission Team. Distribution of the standard library files
+  follows the upstream Pilot Implementation under LGPL-3.0-or-later.

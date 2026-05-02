@@ -1,0 +1,9 @@
+# Git ref (tag or commit SHA) from the public SysML v2 Pilot Implementation
+# https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation
+#
+# This pin is used by the build-pilot.yaml CI workflow and by the Dockerfile
+# when building the open-source image from pilot source.
+#
+# Update this value when upgrading the pilot dependency.
+# The corresponding internal mg-jar release is tracked in build.yaml.
+2026-02
