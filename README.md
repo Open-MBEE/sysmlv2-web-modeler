@@ -740,6 +740,18 @@ docker build \
   .
 ```
 
+### Local developer image
+
+Use this when you already have `pilot-jars/` and `sysml.library/` checked out locally and want
+to avoid the heavyweight upstream Pilot build during Docker image creation:
+
+```bash
+docker build \
+  -t sysml-viz-local:latest \
+  -f Dockerfile.local \
+  .
+```
+
 ### OpenMBEE community image (unbranded)
 
 The OpenMBEE image is built from the same Java backend but with the OpenMBEE HTML/CSS overrides applied on top of the `app/static/` assets:
@@ -751,7 +763,7 @@ docker build \
   .
 ```
 
-Both Dockerfiles:
+`Dockerfile` and `Dockerfile.openmbee`:
 
 1. read the pinned Pilot ref from `.pilot-version`
 2. clone and build the upstream Pilot implementation inside the Docker build
@@ -759,7 +771,14 @@ Both Dockerfiles:
 4. bundle the runtime jars and `sysml.library/`
 5. install Graphviz and Python in the runtime image
 
-Local smoke tests still require `pilot-jars/` to be populated ahead of time. The Docker image build no longer depends on committed `pilot-jars/` or a committed `sysml.library/`.
+Local smoke tests still require `pilot-jars/` to be populated ahead of time. The GitHub/CI Docker
+image build does not depend on committed `pilot-jars/` or a committed `sysml.library/`.
+
+`Dockerfile.local` is intentionally different:
+
+1. compiles against checked-out `pilot-jars/`
+2. bundles the checked-out `sysml.library/`
+3. skips the upstream Pilot clone/build stage entirely
 
 ## Run
 

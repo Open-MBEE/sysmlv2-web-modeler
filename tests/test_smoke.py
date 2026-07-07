@@ -181,48 +181,86 @@ class SysMLVizSmokeTests(unittest.TestCase):
         self.assertIn('fetch("config"', body)
         self.assertIn('fetch("projects"', body)
         self.assertIn('fetch("branches"', body)
+        self.assertIn('fetch("elements/roots"', body)
         self.assertIn('fetch("logs?after=" + encodeURIComponent(String(lastLogId))', body)
         self.assertIn('fetch("render?" + qs.toString())', body)
+        self.assertIn('qs.set("rootNamespaceId", rootNamespaceId);', body)
+        self.assertIn('qs.set("rootNamespaceName", rootEntry.name);', body)
+        self.assertNotIn('fetch("renderText"', body)
+        self.assertNotIn('fetch("textual/fromjson"', body)
         self.assertIn('id="projectSelect"', body)
         self.assertNotIn('id="projectId"', body)
         self.assertIn('id="branchSelect"', body)
+        self.assertIn('id="rootNamespaceSelect"', body)
+        self.assertIn('id="loadRootsBtn"', body)
         self.assertNotIn('id="branch"', body)
         self.assertIn('id="loadBranchesBtn"', body)
+        self.assertIn('id="copySelectionUrlBtn"', body)
+        self.assertIn("navigator.clipboard.writeText", body)
+        self.assertIn("window.prompt(\"Clipboard access is unavailable. Copy this URL:\", url);", body)
+        self.assertIn("option.dataset.commitId = branch.commitId || \"\";", body)
+        self.assertIn("/projects/${encodeURIComponent(projectId)}/commits/${encodeURIComponent(commitId)}", body)
         self.assertNotIn('id="createBranchBtn"', body)
         self.assertNotIn('id="newBranchName"', body)
         self.assertIn('id="element"', body)
-        self.assertIn('id="baseField"', body)
-        self.assertIn('id="tokenField"', body)
+        self.assertNotIn('id="baseField"', body)
+        self.assertNotIn('id="tokenField"', body)
+        self.assertIn('id="navSettings"', body)
         self.assertIn('id="view"', body)
         self.assertIn('id="style"', body)
-        self.assertIn('showApiBaseField', body)
-        self.assertIn('showBearerTokenField', body)
 
     def test_editor_page_contains_textual_controls(self):
         status, body, headers = self.fetch("/editor")
         self.assertEqual(status, 200)
         self.assertEqual(headers.get_content_type(), "text/html")
         self.assertIn('id="modelText"', body)
-        self.assertIn('id="token"', body)
-        self.assertIn('id="baseField"', body)
-        self.assertIn('id="tokenField"', body)
         self.assertIn('id="projectSelect"', body)
         self.assertNotIn('id="projectId"', body)
         self.assertIn('id="branchSelect"', body)
         self.assertNotIn('id="branch"', body)
+        self.assertIn('id="rootNamespaceSelect"', body)
+        self.assertIn('id="loadRootsBtn"', body)
         self.assertIn('id="loadBranchesBtn"', body)
+        self.assertIn('id="copySelectionUrlBtn"', body)
+        self.assertIn("navigator.clipboard.writeText", body)
+        self.assertIn("window.prompt(\"Clipboard access is unavailable. Copy this URL:\", url);", body)
+        self.assertIn("option.dataset.commitId = branch.commitId || \"\";", body)
+        self.assertIn("/projects/${encodeURIComponent(projectId)}/commits/${encodeURIComponent(commitId)}", body)
         self.assertIn('id="createBranchBtn"', body)
         self.assertIn('id="newBranchName"', body)
         self.assertIn('id="newProjectName"', body)
         self.assertIn('id="newProjectDescription"', body)
         self.assertIn('id="createProjectBtn"', body)
+        self.assertIn('id="rootNamespaceSelect"', body)
+        self.assertIn('id="loadRootsBtn"', body)
+        self.assertNotIn('id="element"', body)
+        self.assertNotIn('id="baseField"', body)
+        self.assertNotIn('id="tokenField"', body)
+        self.assertIn('id="navSettings"', body)
         self.assertIn('textual/validate', body)
         self.assertIn('textual/commit', body)
+        self.assertIn('fetch("textual?" + qs.toString()', body)
+        self.assertIn('qs.set("rootNamespaceId", rootNamespaceId);', body)
+        self.assertIn('qs.set("rootNamespaceName", rootEntry.name);', body)
+        self.assertNotIn('fetch("textual/fromjson"', body)
         self.assertIn('projects/create', body)
         self.assertIn('branches/create', body)
         self.assertIn("Commit Replace", body)
-        self.assertIn('showApiBaseField', body)
-        self.assertIn('showBearerTokenField', body)
+
+    def test_settings_page_contains_shared_connection_controls(self):
+        status, body, headers = self.fetch("/settings")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get_content_type(), "text/html")
+        self.assertIn('id="baseField"', body)
+        self.assertIn('id="tokenField"', body)
+        self.assertIn('id="navTextEditor"', body)
+        self.assertIn('id="navDiagramViewer"', body)
+        self.assertIn('id="navSettings"', body)
+        self.assertIn("Connection Settings", body)
+        self.assertIn('addEventListener("input", persistValue)', body)
+        self.assertIn('addEventListener("change", persistValue)', body)
+        self.assertIn('return localStorage.getItem(storageKey) !== null;', body)
+        self.assertIn('config.uiMode === "embedded" || config.allowUiApiOverride === false', body)
 
     def test_projects_requires_body(self):
         status, body, _ = self.fetch("/projects", method="POST")
@@ -283,6 +321,28 @@ class SysMLVizSmokeTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("Missing modelText", body)
 
+    def test_textual_fromjson_requires_body(self):
+        status, body, _ = self.fetch("/textual/fromjson", method="POST")
+        self.assertEqual(status, 400)
+        self.assertIn("Missing request body", body)
+
+    def test_textual_fromjson_requires_model_json(self):
+        data = json.dumps({}).encode("utf-8")
+        status, body, _ = self.fetch("/textual/fromjson", method="POST", data=data)
+        self.assertEqual(status, 400)
+        self.assertIn("Missing modelJson", body)
+
+    def test_render_text_requires_body(self):
+        status, body, _ = self.fetch("/renderText", method="POST")
+        self.assertEqual(status, 400)
+        self.assertIn("Missing request body", body)
+
+    def test_render_text_requires_model_text(self):
+        data = json.dumps({}).encode("utf-8")
+        status, body, _ = self.fetch("/renderText", method="POST", data=data)
+        self.assertEqual(status, 400)
+        self.assertIn("Missing modelText", body)
+
     def test_elements_requires_body(self):
         status, body, _ = self.fetch("/elements", method="POST")
         self.assertEqual(status, 400)
@@ -291,6 +351,17 @@ class SysMLVizSmokeTests(unittest.TestCase):
     def test_elements_requires_project_and_branch_id(self):
         data = json.dumps({"apiBase": "http://sysml-api:8080", "bearerToken": "Bearer x"}).encode("utf-8")
         status, body, _ = self.fetch("/elements", method="POST", data=data)
+        self.assertEqual(status, 400)
+        self.assertIn("Missing projectId", body)
+
+    def test_element_roots_requires_body(self):
+        status, body, _ = self.fetch("/elements/roots", method="POST")
+        self.assertEqual(status, 400)
+        self.assertIn("Missing request body", body)
+
+    def test_element_roots_requires_project_and_branch_id(self):
+        data = json.dumps({"apiBase": "http://sysml-api:8080", "bearerToken": "Bearer x"}).encode("utf-8")
+        status, body, _ = self.fetch("/elements/roots", method="POST", data=data)
         self.assertEqual(status, 400)
         self.assertIn("Missing projectId", body)
 
@@ -330,11 +401,23 @@ class SysMLVizSmokeTests(unittest.TestCase):
     def test_feature_chain_sanitizer_removes_broken_entries(self):
         self.run_java_class("SysMLVizServerFeatureChainSanitizerHarness")
 
+    def test_normalize_collection_helpers_accept_supported_wrappers(self):
+        self.run_java_class("SysMLVizServerNormalizeCollectionsHarness")
+
     def test_top_level_resolution_picks_named_element(self):
         self.run_java_class("SysMLVizServerTopLevelResolveHarness")
 
     def test_resolve_loaded_element_prefers_top_level_richer_match(self):
         self.run_java_class("SysMLVizServerResolveSelectionHarness")
+
+    def test_resolve_loaded_element_prefers_explicit_name_over_root_namespace_id(self):
+        self.run_java_class("SysMLVizServerResolveSelectionWithRootHarness")
+
+    def test_resolve_loaded_element_supports_root_namespace_only_fallback(self):
+        self.run_java_class("SysMLVizServerResolveRootNamespaceFallbackHarness")
+
+    def test_safe_name_helpers_tolerate_derived_name_npe(self):
+        self.run_java_class("SysMLVizServerDerivedNameNpeHarness")
 
     def test_validation_with_libraries_accepts_part_usage(self):
         self.run_java_class("SysMLVizServerValidationWithLibraryHarness")
@@ -357,8 +440,23 @@ class SysMLVizSmokeTests(unittest.TestCase):
     def test_fetch_branches_corrects_flexo_name_mismatch(self):
         self.run_java_class("SysMLVizServerFetchBranchesHarness")
 
+    def test_fetch_branches_accepts_items_wrapped_responses(self):
+        self.run_java_class("SysMLVizServerFetchBranchesItemsHarness")
+
+    def test_fetch_branches_falls_back_to_project_default_branch_on_500(self):
+        self.run_java_class("SysMLVizServerFetchBranchesFallbackHarness")
+
+    def test_fetch_projects_accepts_wrapped_project_lists(self):
+        self.run_java_class("SysMLVizServerFetchProjectsHarness")
+
+    def test_render_selection_uses_requested_element_name(self):
+        self.run_java_class("SysMLVizServerRenderSelectionHarness")
+
     def test_export_parsed_json_returns_element_array(self):
         self.run_java_class("SysMLVizServerExportParsedJsonHarness")
+
+    def test_root_namespace_split_groups_interleaved_documents(self):
+        self.run_java_class("SysMLVizServerRootNamespaceSplitHarness")
 
 
 if __name__ == "__main__":

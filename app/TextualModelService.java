@@ -10,6 +10,7 @@ import org.eclipse.xtext.nodemodel.ICompositeNode;
 import org.eclipse.xtext.nodemodel.util.NodeModelUtils;
 import org.omg.sysml.interactive.SysMLInteractive;
 import org.omg.sysml.interactive.SysMLInteractiveResult;
+import org.omg.sysml.interactive.VizResult;
 import org.omg.sysml.lang.sysml.Element;
 
 final class TextualModelService {
@@ -40,17 +41,22 @@ final class TextualModelService {
         resourceCount++;
       }
       SysMLVizServer.log("[textual] total resources loaded: " + resourceCount);
-      SysMLVizServer.log("[textual] resolve start: " + SysMLVizServer.firstNonBlank(request.elementName(), "(top-level)"));
-      Element resolvedElement = resolveLoadedElement(textualSysml, request.elementName());
+      SysMLVizServer.log("[textual] resolve start: " + request.resolveTargetSummary());
+      Element resolvedElement = resolveLoadedElement(
+        textualSysml,
+        request.elementName(),
+        request.rootNamespaceId(),
+        request.rootNamespaceName()
+      );
       if (resolvedElement == null) {
-        SysMLVizServer.log("[textual] resolve failed: " + SysMLVizServer.firstNonBlank(request.elementName(), "(top-level)"));
+        SysMLVizServer.log("[textual] resolve failed: " + request.resolveTargetSummary());
         throw new IllegalArgumentException(
-          "Element not found or not resolvable: " + SysMLVizServer.firstNonBlank(request.elementName(), "(top-level)")
+          "Element not found or not resolvable: " + request.resolveTargetSummary()
         );
       }
       SysMLVizServer.log(
         "[textual] resolve complete: eClass=" + resolvedElement.eClass().getName()
-          + ", qualifiedName=" + SysMLVizServer.firstNonBlank(resolvedElement.getQualifiedName(), resolvedElement.getDeclaredName())
+          + ", qualifiedName=" + SysMLVizServer.safeDisplayName(resolvedElement)
           + ", eResource=" + (resolvedElement.eResource() == null ? "null" : resolvedElement.eResource().getClass().getSimpleName())
           + ", eResourceSet=" + (resolvedElement.eResource() == null || resolvedElement.eResource().getResourceSet() == null
               ? "null" : resolvedElement.eResource().getResourceSet().getClass().getSimpleName())
@@ -213,14 +219,27 @@ final class TextualModelService {
     }
   }
 
-  Element resolveLoadedElement(SysMLInteractive sysml, String elementName) {
+  Element resolveLoadedElement(
+    SysMLInteractive sysml,
+    String elementName,
+    String rootNamespaceId,
+    String rootNamespaceName
+  ) {
     if (sysml == null) {
       return null;
     }
-    if (elementName == null || elementName.isBlank()) {
+    String normalizedElementName = SysMLVizServer.firstNonBlank(elementName);
+    String normalizedRootNamespaceId = SysMLVizServer.firstNonBlank(rootNamespaceId);
+    String normalizedRootNamespaceName = SysMLVizServer.firstNonBlank(rootNamespaceName);
+    if (
+      normalizedElementName.isBlank()
+      && normalizedRootNamespaceId.isBlank()
+      && normalizedRootNamespaceName.isBlank()
+    ) {
       return resolveTopLevelLoadedElement(sysml);
     }
 
+    List<Element> exactIdMatches = new ArrayList<>();
     List<Element> exactQualifiedMatches = new ArrayList<>();
     List<Element> exactDeclaredMatches = new ArrayList<>();
     List<Element> suffixQualifiedMatches = new ArrayList<>();
@@ -234,22 +253,50 @@ final class TextualModelService {
           continue;
         }
         Element element = (Element) object;
-        String qualifiedName = SysMLVizServer.firstNonBlank(element.getQualifiedName());
-        String declaredName = SysMLVizServer.firstNonBlank(element.getDeclaredName(), element.getName());
+        String elementId = SysMLVizServer.firstNonBlank(element.getElementId());
+        String qualifiedName = SysMLVizServer.safeQualifiedName(element);
+        String declaredName = SysMLVizServer.firstNonBlank(
+          SysMLVizServer.safeDeclaredName(element),
+          SysMLVizServer.safeName(element)
+        );
 
-        if (elementName.equals(qualifiedName)) {
+        if (!normalizedRootNamespaceId.isBlank() && normalizedRootNamespaceId.equals(elementId)) {
+          exactIdMatches.add(element);
+        } else if (!normalizedElementName.isBlank() && normalizedElementName.equals(qualifiedName)) {
           exactQualifiedMatches.add(element);
-        } else if (elementName.equals(declaredName)) {
+        } else if (!normalizedElementName.isBlank() && normalizedElementName.equals(declaredName)) {
           exactDeclaredMatches.add(element);
-        } else if (!qualifiedName.isBlank() && qualifiedName.endsWith("::" + elementName)) {
+        } else if (!normalizedRootNamespaceName.isBlank() && normalizedRootNamespaceName.equals(qualifiedName)) {
+          exactQualifiedMatches.add(element);
+        } else if (!normalizedRootNamespaceName.isBlank() && normalizedRootNamespaceName.equals(declaredName)) {
+          exactDeclaredMatches.add(element);
+        } else if (!normalizedElementName.isBlank()
+            && !qualifiedName.isBlank()
+            && qualifiedName.endsWith("::" + normalizedElementName)) {
+          suffixQualifiedMatches.add(element);
+        } else if (!normalizedRootNamespaceName.isBlank()
+            && !qualifiedName.isBlank()
+            && qualifiedName.endsWith("::" + normalizedRootNamespaceName)) {
           suffixQualifiedMatches.add(element);
         }
       }
     }
 
-    List<Element> candidates = !exactQualifiedMatches.isEmpty()
-      ? exactQualifiedMatches
-      : (!exactDeclaredMatches.isEmpty() ? exactDeclaredMatches : suffixQualifiedMatches);
+    boolean hasExplicitElementTarget = !normalizedElementName.isBlank();
+    List<Element> candidates;
+    if (hasExplicitElementTarget) {
+      candidates = !exactQualifiedMatches.isEmpty()
+        ? exactQualifiedMatches
+        : (!exactDeclaredMatches.isEmpty()
+            ? exactDeclaredMatches
+            : (!suffixQualifiedMatches.isEmpty() ? suffixQualifiedMatches : exactIdMatches));
+    } else {
+      candidates = !exactIdMatches.isEmpty()
+        ? exactIdMatches
+        : (!exactQualifiedMatches.isEmpty()
+            ? exactQualifiedMatches
+            : (!exactDeclaredMatches.isEmpty() ? exactDeclaredMatches : suffixQualifiedMatches));
+    }
     if (candidates.isEmpty()) {
       return null;
     }
@@ -266,11 +313,150 @@ final class TextualModelService {
     }
 
     if (candidates.size() > 1) {
+      String target = resolutionTargetSummary(normalizedElementName, normalizedRootNamespaceId, normalizedRootNamespaceName);
       SysMLVizServer.log(
-        "[resolve] multiple matches for '" + elementName + "', selected "
-          + SysMLVizServer.firstNonBlank(best.getQualifiedName(), best.getDeclaredName(), best.getElementId())
+        "[resolve] multiple matches for '" + target + "', selected "
+          + SysMLVizServer.firstNonBlank(
+              SysMLVizServer.safeQualifiedName(best),
+              SysMLVizServer.safeDeclaredName(best),
+              best.getElementId()
+            )
           + " with score=" + bestScore + " from " + candidates.size() + " candidates"
       );
+    }
+    if (
+      normalizedElementName.isBlank()
+      && !normalizedRootNamespaceId.isBlank()
+      && best != null
+    ) {
+      Element refined = resolvePreferredRootNamespaceTarget(best, normalizedRootNamespaceName);
+      if (refined != null && refined != best) {
+        SysMLVizServer.log(
+          "[resolve] refined root namespace target from "
+            + SysMLVizServer.firstNonBlank(
+              SysMLVizServer.safeQualifiedName(best),
+              SysMLVizServer.safeDeclaredName(best),
+              best.getElementId()
+            )
+            + " to "
+            + SysMLVizServer.firstNonBlank(
+              SysMLVizServer.safeQualifiedName(refined),
+              SysMLVizServer.safeDeclaredName(refined),
+              refined.getElementId()
+            )
+        );
+        return refined;
+      }
+    }
+    return best;
+  }
+
+  Element resolveLoadedElement(SysMLInteractive sysml, String elementName) {
+    return resolveLoadedElement(sysml, elementName, "", "");
+  }
+
+  static String resolutionTargetSummary(String elementName, String rootNamespaceId, String rootNamespaceName) {
+    if (!SysMLVizServer.firstNonBlank(elementName).isBlank()) {
+      return elementName;
+    }
+    if (!SysMLVizServer.firstNonBlank(rootNamespaceName).isBlank()) {
+      return "root namespace " + rootNamespaceName;
+    }
+    if (!SysMLVizServer.firstNonBlank(rootNamespaceId).isBlank()) {
+      return "root namespace id=" + rootNamespaceId;
+    }
+    return "(top-level)";
+  }
+
+  Element resolvePreferredRootNamespaceTarget(Element rootNamespaceElement, String rootNamespaceName) {
+    if (rootNamespaceElement == null) {
+      return null;
+    }
+
+    String ownName = SysMLVizServer.firstNonBlank(
+      SysMLVizServer.safeQualifiedName(rootNamespaceElement),
+      SysMLVizServer.safeDeclaredName(rootNamespaceElement),
+      SysMLVizServer.safeName(rootNamespaceElement)
+    );
+    if (!ownName.isBlank()) {
+      return rootNamespaceElement;
+    }
+
+    String fileStem = normalizedRootNamespaceStem(rootNamespaceName);
+    List<Element> exactNameMatches = new ArrayList<>();
+    List<Element> suffixNameMatches = new ArrayList<>();
+    List<Element> namedDescendants = new ArrayList<>();
+    int bestDepth = Integer.MAX_VALUE;
+
+    for (EObject candidateObj : SysMLVizServer.collectEObjectSnapshot(rootNamespaceElement)) {
+      if (!(candidateObj instanceof Element element)) {
+        continue;
+      }
+      if (candidateObj == rootNamespaceElement) {
+        continue;
+      }
+
+      String qualifiedName = SysMLVizServer.safeQualifiedName(element);
+      String declaredName = SysMLVizServer.firstNonBlank(
+        SysMLVizServer.safeDeclaredName(element),
+        SysMLVizServer.safeName(element)
+      );
+      if (qualifiedName.isBlank() && declaredName.isBlank()) {
+        continue;
+      }
+
+      int depth = SysMLVizServer.containmentDepthBelow(rootNamespaceElement, candidateObj);
+      if (depth < 0) {
+        continue;
+      }
+
+      if (!fileStem.isBlank()) {
+        if (fileStem.equals(qualifiedName) || fileStem.equals(declaredName)) {
+          exactNameMatches.add(element);
+        } else if (!qualifiedName.isBlank() && qualifiedName.endsWith("::" + fileStem)) {
+          suffixNameMatches.add(element);
+        }
+      }
+
+      if (depth < bestDepth) {
+        namedDescendants.clear();
+        namedDescendants.add(element);
+        bestDepth = depth;
+      } else if (depth == bestDepth) {
+        namedDescendants.add(element);
+      }
+    }
+
+    List<Element> preferred = !exactNameMatches.isEmpty()
+      ? exactNameMatches
+      : (!suffixNameMatches.isEmpty() ? suffixNameMatches : namedDescendants);
+    if (preferred.isEmpty()) {
+      return rootNamespaceElement;
+    }
+    return selectBestElement(preferred);
+  }
+
+  String normalizedRootNamespaceStem(String rootNamespaceName) {
+    String normalized = SysMLVizServer.firstNonBlank(rootNamespaceName);
+    if (normalized.toLowerCase().endsWith(".sysml")) {
+      return normalized.substring(0, normalized.length() - ".sysml".length());
+    }
+    return normalized;
+  }
+
+  Element selectBestElement(List<Element> candidates) {
+    if (candidates == null || candidates.isEmpty()) {
+      return null;
+    }
+    Element best = candidates.get(0);
+    int bestScore = elementSelectionScore(best);
+    for (int i = 1; i < candidates.size(); i++) {
+      Element candidate = candidates.get(i);
+      int score = elementSelectionScore(candidate);
+      if (score > bestScore || (score == bestScore && compareElementPreference(candidate, best) > 0)) {
+        best = candidate;
+        bestScore = score;
+      }
     }
     return best;
   }
@@ -293,8 +479,11 @@ final class TextualModelService {
         if (candidateObj == root) {
           continue;
         }
-        String qualifiedName = SysMLVizServer.firstNonBlank(element.getQualifiedName());
-        String declaredName = SysMLVizServer.firstNonBlank(element.getDeclaredName(), element.getName());
+        String qualifiedName = SysMLVizServer.safeQualifiedName(element);
+        String declaredName = SysMLVizServer.firstNonBlank(
+          SysMLVizServer.safeDeclaredName(element),
+          SysMLVizServer.safeName(element)
+        );
         if (qualifiedName.isBlank() && declaredName.isBlank()) {
           continue;
         }
@@ -313,9 +502,9 @@ final class TextualModelService {
       if (!namedChildren.isEmpty()) {
         Element firstNamedTopLevel = namedChildren.get(0);
         String targetName = SysMLVizServer.firstNonBlank(
-          firstNamedTopLevel.getQualifiedName(),
-          firstNamedTopLevel.getDeclaredName(),
-          firstNamedTopLevel.getName()
+          SysMLVizServer.safeQualifiedName(firstNamedTopLevel),
+          SysMLVizServer.safeDeclaredName(firstNamedTopLevel),
+          SysMLVizServer.safeName(firstNamedTopLevel)
         );
         if (!targetName.isBlank()) {
           Element resolved = resolveLoadedElement(sysml, targetName);
@@ -327,8 +516,8 @@ final class TextualModelService {
         SysMLVizServer.log(
           "[resolve] no element provided, selected named top-level "
             + SysMLVizServer.firstNonBlank(
-              firstNamedTopLevel.getQualifiedName(),
-              firstNamedTopLevel.getDeclaredName(),
+              SysMLVizServer.safeQualifiedName(firstNamedTopLevel),
+              SysMLVizServer.safeDeclaredName(firstNamedTopLevel),
               firstNamedTopLevel.getElementId()
             )
         );
@@ -343,9 +532,12 @@ final class TextualModelService {
       return -1;
     }
     int subtreeSize = SysMLVizServer.collectEObjectSnapshot(element).size();
-    String qualifiedName = SysMLVizServer.firstNonBlank(element.getQualifiedName());
+    String qualifiedName = SysMLVizServer.safeQualifiedName(element);
     int qualifiedDepth = qualifiedName.isBlank() ? 0 : qualifiedName.split("::", -1).length;
-    String declaredName = SysMLVizServer.firstNonBlank(element.getDeclaredName(), element.getName());
+    String declaredName = SysMLVizServer.firstNonBlank(
+      SysMLVizServer.safeDeclaredName(element),
+      SysMLVizServer.safeName(element)
+    );
     boolean hasName = !qualifiedName.isBlank() || !declaredName.isBlank();
     int nameBonus = hasName ? 1_000_000 : 0;
     int declaredNameScore = declaredName.isBlank() ? 0 : 1;
@@ -375,8 +567,18 @@ final class TextualModelService {
       return Integer.compare(rightDepth, leftDepth);
     }
 
-    String leftQualified = SysMLVizServer.firstNonBlank(left.getQualifiedName(), left.getDeclaredName(), left.getName(), left.getElementId());
-    String rightQualified = SysMLVizServer.firstNonBlank(right.getQualifiedName(), right.getDeclaredName(), right.getName(), right.getElementId());
+    String leftQualified = SysMLVizServer.firstNonBlank(
+      SysMLVizServer.safeQualifiedName(left),
+      SysMLVizServer.safeDeclaredName(left),
+      SysMLVizServer.safeName(left),
+      left.getElementId()
+    );
+    String rightQualified = SysMLVizServer.firstNonBlank(
+      SysMLVizServer.safeQualifiedName(right),
+      SysMLVizServer.safeDeclaredName(right),
+      SysMLVizServer.safeName(right),
+      right.getElementId()
+    );
     int lexical = rightQualified.compareTo(leftQualified);
     if (lexical != 0) {
       return lexical;
@@ -387,13 +589,49 @@ final class TextualModelService {
     return rightId.compareTo(leftId);
   }
 
+  VizResult renderProcessedModel(
+    String modelText,
+    String elementName,
+    List<String> viewParams,
+    List<String> styleParams
+  ) throws Exception {
+    synchronized (SysMLVizServer.SYSML_LOCK) {
+      SysMLInteractive textualSysml = SysMLInteractive.createInstance();
+      SysMLVizServer.configureLibraries(textualSysml);
+      SysMLInteractiveResult result = textualSysml.process(modelText, false);
+      SysMLVizServer.logValidationDetails("[renderText]", textualSysml, result);
+      if (result.getException() != null || result.hasErrors() || result.getRootElement() == null) {
+        throw new IllegalArgumentException("Model has parse errors; fix validation issues before rendering");
+      }
+
+      Element resolvedElement = resolveLoadedElement(textualSysml, elementName, "", "");
+      if (resolvedElement == null && result.getRootElement() instanceof Element rootElement && (elementName == null || elementName.isBlank())) {
+        resolvedElement = rootElement;
+      }
+      if (resolvedElement == null) {
+        throw new IllegalArgumentException(
+          "Element not found or not resolvable: " + SysMLVizServer.firstNonBlank(elementName, "(top-level)")
+        );
+      }
+
+      return SysMLVizServer.renderResolvedSelection(
+        textualSysml,
+        resolvedElement,
+        viewParams,
+        styleParams
+      );
+    }
+  }
+
   record TextualLoadRequest(
     String apiBase,
     String projectName,
     String projectId,
     String branchName,
     String branchId,
-    String elementName
+    String elementName,
+    String rootNamespaceId,
+    String rootNamespaceName
   ) {
     Map<String, String> toLoadParams() {
       Map<String, String> loadParams = new HashMap<>();
@@ -402,6 +640,14 @@ final class TextualModelService {
       if (!branchId.isBlank()) loadParams.put("branch-id", branchId);
       if (!branchName.isBlank()) loadParams.put("branch", branchName);
       return loadParams;
+    }
+
+    String resolveTargetSummary() {
+      return TextualModelService.resolutionTargetSummary(
+        elementName,
+        rootNamespaceId,
+        rootNamespaceName
+      );
     }
   }
 

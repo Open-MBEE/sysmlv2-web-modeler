@@ -37,6 +37,7 @@ import org.eclipse.emf.common.notify.NotificationChain;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -156,7 +157,10 @@ public class SysMLVizServer {
     }
   }
   private static final ExecutorService RENDER_EXECUTOR = Executors.newCachedThreadPool();
-  private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(20)).build();
+  private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+    .connectTimeout(java.time.Duration.ofSeconds(20))
+    .version(HttpClient.Version.HTTP_1_1)
+    .build();
   private static final String UI_MODE = detectUiMode();
   private static final boolean ALLOW_UI_API_OVERRIDE = parseBooleanOrDefault(
     System.getenv("SYSML_ALLOW_UI_API_OVERRIDE"),
@@ -264,6 +268,67 @@ public class SysMLVizServer {
       }
     }
     return "";
+  }
+
+  static String safeQualifiedName(Element element) {
+    if (element == null) {
+      return "";
+    }
+    try {
+      return firstNonBlank(element.getQualifiedName());
+    } catch (RuntimeException ex) {
+      logSafeDerivedNameFailure("qualifiedName", element, ex);
+      return "";
+    }
+  }
+
+  static String safeDeclaredName(Element element) {
+    if (element == null) {
+      return "";
+    }
+    try {
+      return firstNonBlank(element.getDeclaredName());
+    } catch (RuntimeException ex) {
+      logSafeDerivedNameFailure("declaredName", element, ex);
+      return "";
+    }
+  }
+
+  static String safeName(Element element) {
+    if (element == null) {
+      return "";
+    }
+    try {
+      return firstNonBlank(element.getName());
+    } catch (RuntimeException ex) {
+      logSafeDerivedNameFailure("name", element, ex);
+      return "";
+    }
+  }
+
+  static String safeDisplayName(Element element) {
+    return firstNonBlank(
+      safeQualifiedName(element),
+      safeDeclaredName(element),
+      safeName(element),
+      element == null ? "" : firstNonBlank(element.getElementId())
+    );
+  }
+
+  static void logSafeDerivedNameFailure(String property, Element element, RuntimeException ex) {
+    Throwable root = rootCause(ex);
+    String kind = element == null || element.eClass() == null ? "Element" : element.eClass().getName();
+    String elementId = "";
+    try {
+      elementId = element == null ? "" : firstNonBlank(element.getElementId());
+    } catch (RuntimeException ignored) {
+      elementId = "";
+    }
+    log("[resolve] ignoring " + root.getClass().getSimpleName()
+      + " while reading " + property
+      + " for " + kind
+      + " id=" + firstNonBlank(elementId, "(blank)")
+      + ": " + firstNonBlank(root.getMessage(), ex.getMessage()));
   }
 
   static String detectSysMLLibraryPath() {
@@ -835,11 +900,11 @@ public class SysMLVizServer {
   }
 
   static String fallbackElementName(Element element) {
-    String declaredName = firstNonBlank(element.getDeclaredName(), element.getName());
+    String declaredName = firstNonBlank(safeDeclaredName(element), safeName(element));
     if (!declaredName.isBlank()) {
       return declaredName;
     }
-    String qualifiedName = firstNonBlank(element.getQualifiedName());
+    String qualifiedName = safeQualifiedName(element);
     if (!qualifiedName.isBlank()) {
       int idx = qualifiedName.lastIndexOf("::");
       return idx >= 0 ? qualifiedName.substring(idx + 2) : qualifiedName;
@@ -1074,7 +1139,7 @@ public class SysMLVizServer {
         missingContainers++;
       }
       if (current instanceof Element element) {
-        String declaredName = firstNonBlank(element.getDeclaredName(), element.getName());
+        String declaredName = firstNonBlank(safeDeclaredName(element), safeName(element));
         if (declaredName.isBlank()) {
           missingNames++;
         }
@@ -1178,6 +1243,15 @@ public class SysMLVizServer {
     return TEXTUAL_MODEL_SERVICE.resolveLoadedElement(sysml, elementName);
   }
 
+  static Element resolveLoadedElement(
+    SysMLInteractive sysml,
+    String elementName,
+    String rootNamespaceId,
+    String rootNamespaceName
+  ) {
+    return TEXTUAL_MODEL_SERVICE.resolveLoadedElement(sysml, elementName, rootNamespaceId, rootNamespaceName);
+  }
+
   static Element resolveTopLevelLoadedElement(SysMLInteractive sysml) {
     return TEXTUAL_MODEL_SERVICE.resolveTopLevelLoadedElement(sysml);
   }
@@ -1207,7 +1281,9 @@ public class SysMLVizServer {
       firstNonBlank(q.get("projectId")),
       firstNonBlank(q.get("branchName")),
       firstNonBlank(q.get("branchId")),
-      firstNonBlank(q.get("element"))
+      firstNonBlank(q.get("element")),
+      firstNonBlank(q.get("rootNamespaceId")),
+      firstNonBlank(q.get("rootNamespaceName"))
     );
   }
 
@@ -1273,7 +1349,7 @@ public class SysMLVizServer {
     json.addProperty("rootElementId",
       result.getRootElement() == null ? "" : firstNonBlank(result.getRootElement().getElementId()));
     json.addProperty("rootElementName",
-      result.getRootElement() == null ? "" : firstNonBlank(result.getRootElement().getQualifiedName(), result.getRootElement().getDeclaredName()));
+      result.getRootElement() == null ? "" : safeDisplayName(result.getRootElement()));
     json.add("issues", issuesJson(result.getIssues()));
     json.add("syntaxErrors", issuesJson(result.getSyntaxErrors()));
     json.add("semanticErrors", issuesJson(result.getSemanticErrors()));
@@ -1289,8 +1365,8 @@ public class SysMLVizServer {
       return "(null)";
     }
     return "type=" + element.eClass().getName()
-      + ", qualifiedName=" + firstNonBlank(element.getQualifiedName(), "(blank)")
-      + ", declaredName=" + firstNonBlank(element.getDeclaredName(), element.getName(), "(blank)")
+      + ", qualifiedName=" + firstNonBlank(safeQualifiedName(element), "(blank)")
+      + ", declaredName=" + firstNonBlank(safeDeclaredName(element), safeName(element), "(blank)")
       + ", elementId=" + firstNonBlank(element.getElementId(), "(blank)")
       + ", ownedRelationshipCount=" + (element.getOwnedRelationship() == null ? -1 : element.getOwnedRelationship().size());
   }
@@ -1443,24 +1519,51 @@ public class SysMLVizServer {
     List<String> views,
     List<String> styles
   ) {
+    List<String> requestedStyles = styles == null ? Collections.emptyList() : styles;
     try {
-      Method method = sysml.getClass().getDeclaredMethod(
-        "viz",
-        List.class,
-        List.class,
-        List.class
-      );
-      method.setAccessible(true);
-      Object result = method.invoke(
-        sysml,
-        Collections.singletonList(element),
-        views,
-        styles
-      );
-      return (VizResult) result;
+      VizResult result = invokeVizReflective(sysml, element, views, requestedStyles);
+      if (shouldRetryWithoutMetadata(result) && !containsStyleIgnoreCase(requestedStyles, "HIDEMETADATA")) {
+        List<String> retryStyles = new ArrayList<>(requestedStyles);
+        retryStyles.add("HIDEMETADATA");
+        log("[render] retrying viz with HIDEMETADATA after metadata feature-chain failure");
+        return normalizeVizResult(invokeVizReflective(sysml, element, views, retryStyles));
+      }
+      return normalizeVizResult(result);
     } catch (Exception e) {
+      if (isMetadataFeatureChainFailure(rootCause(e)) && !containsStyleIgnoreCase(requestedStyles, "HIDEMETADATA")) {
+        try {
+          List<String> retryStyles = new ArrayList<>(requestedStyles);
+          retryStyles.add("HIDEMETADATA");
+          log("[render] retrying viz with HIDEMETADATA after metadata feature-chain exception");
+          return normalizeVizResult(invokeVizReflective(sysml, element, views, retryStyles));
+        } catch (Exception retryException) {
+          return normalizeVizException(retryException);
+        }
+      }
       return normalizeVizException(e);
     }
+  }
+
+  static VizResult invokeVizReflective(
+    SysMLInteractive sysml,
+    EObject element,
+    List<String> views,
+    List<String> styles
+  ) throws Exception {
+    Method method = sysml.getClass().getDeclaredMethod(
+      "viz",
+      List.class,
+      List.class,
+      List.class
+    );
+    method.setAccessible(true);
+    Object result = method.invoke(
+      sysml,
+      Collections.singletonList(element),
+      views,
+      styles
+    );
+    return (VizResult) result;
   }
 
   static VizResult normalizeVizException(Exception exception) {
@@ -1468,6 +1571,11 @@ public class SysMLVizServer {
     if (isBrokenFeatureChainName(root)) {
       return VizResult.vizExceptionResult(
         "Visualization hit a malformed feature chain: FeatureChaining.getChainingFeature() returned null."
+      );
+    }
+    if (isMetadataFeatureChainFailure(root)) {
+      return VizResult.vizExceptionResult(
+        "Visualization hit a malformed metadata feature chain. Retrying with HIDEMETADATA may avoid this Pilot bug."
       );
     }
     return VizResult.exceptionResult(exception);
@@ -1483,6 +1591,11 @@ public class SysMLVizServer {
       && message.contains("Feature.getName()")) {
       return VizResult.vizExceptionResult(
         "Visualization hit a malformed feature chain: FeatureChaining.getChainingFeature() returned null."
+      );
+    }
+    if (isMetadataFeatureChainFailure(message)) {
+      return VizResult.vizExceptionResult(
+        "Visualization hit a malformed metadata feature chain. Retrying with HIDEMETADATA may avoid this Pilot bug."
       );
     }
     return result;
@@ -1506,6 +1619,46 @@ public class SysMLVizServer {
     } catch (Exception e) {
       return normalizeVizException(e);
     }
+  }
+
+  static VizResult renderLoadedSelection(
+    SysMLInteractive sysml,
+    String elementName,
+    String rootNamespaceId,
+    String rootNamespaceName,
+    List<String> viewParams,
+    List<String> styleParams
+  ) {
+    Element resolvedElement = resolveLoadedElement(
+      sysml,
+      elementName,
+      rootNamespaceId,
+      rootNamespaceName
+    );
+    if (resolvedElement == null) {
+      throw new IllegalArgumentException(
+        "Element not found or not resolvable: "
+          + TEXTUAL_MODEL_SERVICE.resolutionTargetSummary(elementName, rootNamespaceId, rootNamespaceName)
+      );
+    }
+
+    return renderResolvedSelection(sysml, resolvedElement, viewParams, styleParams);
+  }
+
+  static VizResult renderResolvedSelection(
+    SysMLInteractive sysml,
+    Element resolvedElement,
+    List<String> viewParams,
+    List<String> styleParams
+  ) {
+    int removedChainings = sanitizeBrokenFeatureChainings(resolvedElement);
+    if (removedChainings > 0) {
+      log("[render] sanitized " + removedChainings + " broken feature chaining entries");
+    }
+
+    return normalizeVizResult(
+      vizResolvedElement(sysml, resolvedElement, viewParams, styleParams)
+    );
   }
 
   static int sanitizeBrokenFeatureChainings(EObject root) {
@@ -1652,6 +1805,37 @@ public class SysMLVizServer {
       && message.contains("Feature.getName()");
   }
 
+  static boolean isMetadataFeatureChainFailure(Throwable throwable) {
+    if (!(throwable instanceof NullPointerException)) {
+      return false;
+    }
+    return isMetadataFeatureChainFailure(throwable.getMessage());
+  }
+
+  static boolean isMetadataFeatureChainFailure(String message) {
+    if (message == null) {
+      return false;
+    }
+    return message.contains("Feature.getOwnedFeatureChaining()")
+      && message.contains(" because \"sf\" is null");
+  }
+
+  static boolean shouldRetryWithoutMetadata(VizResult result) {
+    return result != null && result.hasException() && isMetadataFeatureChainFailure(result.formatException());
+  }
+
+  static boolean containsStyleIgnoreCase(List<String> styles, String target) {
+    if (styles == null || target == null) {
+      return false;
+    }
+    for (String style : styles) {
+      if (style != null && target.equalsIgnoreCase(style.trim())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   static String requestSummary(
     String apiBase,
     String projectName,
@@ -1685,16 +1869,544 @@ public class SysMLVizServer {
     return "len=" + value.length() + ", preview=\"" + normalized + "\"";
   }
 
-  static JsonArray normalizeProjectList(JsonElement parsed) {
-    JsonArray rawProjects = new JsonArray();
+  static String summarizeUpstreamErrorBody(String body) {
+    String normalized = firstNonBlank(body).trim();
+    if (normalized.isBlank()) {
+      return "(empty response body)";
+    }
+    String lower = normalized.toLowerCase();
+    if (lower.startsWith("<!doctype html") || lower.startsWith("<html")) {
+      if (lower.contains("bad gateway")) {
+        return "upstream returned an HTML 502 Bad Gateway page";
+      }
+      return "upstream returned an HTML error page";
+    }
+    return compactTextSummary(normalized);
+  }
+
+  static JsonArray normalizeElementList(JsonElement parsed) {
     if (parsed != null && parsed.isJsonArray()) {
-      rawProjects = parsed.getAsJsonArray();
-    } else if (parsed != null && parsed.isJsonObject()) {
+      return parsed.getAsJsonArray();
+    }
+    if (parsed != null && parsed.isJsonObject()) {
       JsonElement elements = parsed.getAsJsonObject().get("elements");
       if (elements != null && elements.isJsonArray()) {
-        rawProjects = elements.getAsJsonArray();
+        return elements.getAsJsonArray();
       }
     }
+    return new JsonArray();
+  }
+
+  static boolean isRootNamespace(JsonObject element) {
+    return element != null
+      && "Namespace".equals(firstNonBlank(jsonString(element, "@type")))
+      && (
+        !element.has("owningRelationship")
+        || element.get("owningRelationship") == null
+        || element.get("owningRelationship").isJsonNull()
+        || extractReferenceId(element.get("owningRelationship")) == null
+      );
+  }
+
+  static String rootNamespaceName(JsonObject element) {
+    if (element == null) {
+      return "<unnamed root namespace>";
+    }
+    return firstNonBlank(
+      jsonString(element, "qualifiedName"),
+      jsonString(element, "name"),
+      jsonString(element, "@id"),
+      "<unnamed root namespace>"
+    );
+  }
+
+  static String extractReferenceId(JsonElement value) {
+    if (value == null || value.isJsonNull()) {
+      return null;
+    }
+    if (value.isJsonObject()) {
+      String refId = jsonString(value.getAsJsonObject(), "@id");
+      return refId.isBlank() ? null : refId;
+    }
+    if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+      String refId = firstNonBlank(value.getAsString());
+      return refId.isBlank() ? null : refId;
+    }
+    return null;
+  }
+
+  static List<String> extractReferenceIds(JsonElement value) {
+    List<String> result = new ArrayList<>();
+    if (value == null || value.isJsonNull()) {
+      return result;
+    }
+    if (value.isJsonArray()) {
+      for (JsonElement item : value.getAsJsonArray()) {
+        result.addAll(extractReferenceIds(item));
+      }
+      return result;
+    }
+    String refId = extractReferenceId(value);
+    if (refId != null) {
+      result.add(refId);
+    }
+    return result;
+  }
+
+  static final class RootNamespaceChunk {
+    final String rootId;
+    final String rootName;
+    final JsonArray elements;
+
+    RootNamespaceChunk(String rootId, String rootName, JsonArray elements) {
+      this.rootId = rootId;
+      this.rootName = rootName;
+      this.elements = elements;
+    }
+  }
+
+  static String resolveRootNamespaceId(
+    String elementId,
+    Map<String, JsonObject> elementsById,
+    Map<String, String> resolvedRootById,
+    Set<String> activeIds,
+    String[] ownershipReferenceKeys
+  ) {
+    if (elementId == null || elementId.isBlank()) {
+      return null;
+    }
+    if (resolvedRootById.containsKey(elementId)) {
+      return resolvedRootById.get(elementId);
+    }
+    if (activeIds.contains(elementId)) {
+      return null;
+    }
+
+    Set<String> nextActiveIds = new HashSet<>(activeIds);
+    nextActiveIds.add(elementId);
+    List<String> visited = new ArrayList<>();
+    String currentId = elementId;
+    String rootId = null;
+
+    while (currentId != null) {
+      if (resolvedRootById.containsKey(currentId)) {
+        rootId = resolvedRootById.get(currentId);
+        break;
+      }
+      if (visited.contains(currentId)) {
+        rootId = null;
+        break;
+      }
+      visited.add(currentId);
+      JsonObject currentElement = elementsById.get(currentId);
+      if (currentElement == null) {
+        rootId = null;
+        break;
+      }
+      if (isRootNamespace(currentElement)) {
+        rootId = currentId;
+        break;
+      }
+
+      String owningRelationshipId = extractReferenceId(currentElement.get("owningRelationship"));
+      if (owningRelationshipId != null) {
+        currentId = owningRelationshipId;
+        continue;
+      }
+
+      Set<String> candidateRootIds = new HashSet<>();
+      for (String key : ownershipReferenceKeys) {
+        for (String referencedId : extractReferenceIds(currentElement.get(key))) {
+          String candidateRootId = resolveRootNamespaceId(
+            referencedId,
+            elementsById,
+            resolvedRootById,
+            nextActiveIds,
+            ownershipReferenceKeys
+          );
+          if (candidateRootId != null) {
+            candidateRootIds.add(candidateRootId);
+          }
+        }
+      }
+      if (candidateRootIds.size() == 1) {
+        rootId = candidateRootIds.iterator().next();
+      } else {
+        rootId = null;
+      }
+      break;
+    }
+
+    for (String visitedId : visited) {
+      resolvedRootById.put(visitedId, rootId);
+    }
+    return rootId;
+  }
+
+  static List<RootNamespaceChunk> splitRootNamespaceDocuments(JsonArray elements) {
+    List<JsonObject> rootNamespaces = new ArrayList<>();
+    List<Integer> rootIndices = new ArrayList<>();
+    for (int i = 0; i < elements.size(); i++) {
+      JsonElement entry = elements.get(i);
+      if (!entry.isJsonObject()) {
+        continue;
+      }
+      JsonObject element = entry.getAsJsonObject();
+      if (isRootNamespace(element)) {
+        rootNamespaces.add(element);
+        rootIndices.add(i);
+      }
+    }
+    if (rootNamespaces.isEmpty()) {
+      throw new IllegalArgumentException("No root namespace found");
+    }
+
+    Map<String, Integer> rootIndicesById = new HashMap<>();
+    List<String> rootIdsInOrder = new ArrayList<>();
+    Map<String, String> rootNamesById = new HashMap<>();
+    Map<String, JsonObject> elementsById = new HashMap<>();
+    for (int i = 0; i < rootNamespaces.size(); i++) {
+      JsonObject root = rootNamespaces.get(i);
+      String rootId = firstNonBlank(jsonString(root, "@id"));
+      if (!rootId.isBlank()) {
+        rootIndicesById.put(rootId, rootIndices.get(i));
+        rootIdsInOrder.add(rootId);
+        rootNamesById.put(rootId, rootNamespaceName(root));
+      }
+    }
+    for (JsonElement entry : elements) {
+      if (!entry.isJsonObject()) {
+        continue;
+      }
+      JsonObject element = entry.getAsJsonObject();
+      String elementId = firstNonBlank(jsonString(element, "@id"));
+      if (!elementId.isBlank()) {
+        elementsById.put(elementId, element);
+      }
+    }
+
+    String[] ownershipReferenceKeys = new String[] {
+      "owningRelatedElement",
+      "ownedRelatedElement",
+      "memberElement",
+      "feature",
+      "ownedMember",
+      "ownedMemberElement",
+      "ownedMemberFeature",
+      "ownedElement",
+      "owningNamespace",
+      "owningType",
+      "featuringType",
+      "typedFeature"
+    };
+    Map<String, List<String>> incomingOwnershipRefs = new HashMap<>();
+    for (Map.Entry<String, JsonObject> entry : elementsById.entrySet()) {
+      String ownerId = entry.getKey();
+      JsonObject ownerElement = entry.getValue();
+      for (String key : ownershipReferenceKeys) {
+        for (String referencedId : extractReferenceIds(ownerElement.get(key))) {
+          incomingOwnershipRefs.computeIfAbsent(referencedId, ignored -> new ArrayList<>()).add(ownerId);
+        }
+      }
+    }
+
+    Map<String, String> resolvedRootById = new HashMap<>();
+    Map<String, JsonArray> documentElementsByRootId = new HashMap<>();
+    for (String rootId : rootIdsInOrder) {
+      documentElementsByRootId.put(rootId, new JsonArray());
+    }
+    List<JsonObject> unassignedElements = new ArrayList<>();
+
+    for (JsonElement entry : elements) {
+      if (!entry.isJsonObject()) {
+        continue;
+      }
+      JsonObject element = entry.getAsJsonObject();
+      String elementId = extractReferenceId(element.get("@id"));
+      if (elementId == null) {
+        unassignedElements.add(element);
+        continue;
+      }
+      String rootId = resolveRootNamespaceId(
+        elementId,
+        elementsById,
+        resolvedRootById,
+        Collections.emptySet(),
+        ownershipReferenceKeys
+      );
+      if (rootId == null || !documentElementsByRootId.containsKey(rootId)) {
+        unassignedElements.add(element);
+        continue;
+      }
+      documentElementsByRootId.get(rootId).add(element);
+    }
+
+    boolean changed = true;
+    while (changed && !unassignedElements.isEmpty()) {
+      changed = false;
+      List<JsonObject> stillUnassigned = new ArrayList<>();
+      for (JsonObject element : unassignedElements) {
+        String elementId = extractReferenceId(element.get("@id"));
+        if (elementId == null) {
+          stillUnassigned.add(element);
+          continue;
+        }
+        Set<String> candidateRootIds = new HashSet<>();
+        for (String ownerId : incomingOwnershipRefs.getOrDefault(elementId, Collections.emptyList())) {
+          String candidateRootId = resolveRootNamespaceId(
+            ownerId,
+            elementsById,
+            resolvedRootById,
+            Collections.emptySet(),
+            ownershipReferenceKeys
+          );
+          if (candidateRootId != null) {
+            candidateRootIds.add(candidateRootId);
+          }
+        }
+        if (candidateRootIds.size() != 1) {
+          stillUnassigned.add(element);
+          continue;
+        }
+        String inferredRootId = candidateRootIds.iterator().next();
+        documentElementsByRootId.get(inferredRootId).add(element);
+        resolvedRootById.put(elementId, inferredRootId);
+        changed = true;
+      }
+      unassignedElements = stillUnassigned;
+    }
+
+    List<JsonObject> stillUnassigned = new ArrayList<>();
+    for (JsonObject element : unassignedElements) {
+      int elementIndex = -1;
+      for (int i = 0; i < elements.size(); i++) {
+        if (elements.get(i) == element) {
+          elementIndex = i;
+          break;
+        }
+      }
+      if (elementIndex < 0) {
+        stillUnassigned.add(element);
+        continue;
+      }
+      String fallbackRootId = null;
+      for (String rootId : rootIdsInOrder) {
+        Integer rootIndex = rootIndicesById.get(rootId);
+        if (rootIndex != null && rootIndex <= elementIndex) {
+          fallbackRootId = rootId;
+        } else {
+          break;
+        }
+      }
+      if (fallbackRootId == null) {
+        stillUnassigned.add(element);
+        continue;
+      }
+      documentElementsByRootId.get(fallbackRootId).add(element);
+    }
+
+    if (!stillUnassigned.isEmpty()) {
+      List<String> unassignedIds = new ArrayList<>();
+      for (JsonObject element : stillUnassigned) {
+        String elementId = firstNonBlank(jsonString(element, "@id"));
+        if (!elementId.isBlank()) {
+          unassignedIds.add(elementId);
+        }
+      }
+      throw new IllegalArgumentException(
+        "Could not assign some elements to a root namespace via owningRelationship: "
+        + String.join(", ", unassignedIds)
+      );
+    }
+
+    List<RootNamespaceChunk> documents = new ArrayList<>();
+    for (JsonObject rootNamespace : rootNamespaces) {
+      String rootId = firstNonBlank(jsonString(rootNamespace, "@id"));
+      if (rootId.isBlank()) {
+        continue;
+      }
+      JsonArray documentElements = documentElementsByRootId.get(rootId);
+      if (documentElements == null || documentElements.size() == 0) {
+        continue;
+      }
+      int rootPosition = -1;
+      for (int i = 0; i < documentElements.size(); i++) {
+        JsonElement entry = documentElements.get(i);
+        if (!entry.isJsonObject()) {
+          continue;
+        }
+        if (rootId.equals(extractReferenceId(entry.getAsJsonObject().get("@id")))) {
+          rootPosition = i;
+          break;
+        }
+      }
+      if (rootPosition > 0) {
+        JsonElement rootElement = documentElements.remove(rootPosition);
+        JsonArray reordered = new JsonArray();
+        reordered.add(rootElement);
+        for (JsonElement entry : documentElements) {
+          reordered.add(entry);
+        }
+        documentElements = reordered;
+      }
+      documents.add(new RootNamespaceChunk(rootId, rootNamesById.get(rootId), documentElements));
+    }
+    return documents;
+  }
+
+  static String resolveBranchHeadCommitId(String apiBaseClean, String projectId, String branchId, String bearerToken) throws Exception {
+    HttpRequest branchRequest = HttpRequest.newBuilder()
+      .uri(URI.create(apiBaseClean + "/projects/" + projectId + "/branches/" + branchId))
+      .timeout(java.time.Duration.ofSeconds(30))
+      .header("Accept", "application/json")
+      .header("Authorization", bearerToken)
+      .header("User-Agent", "sysmlv2viz-elements/1.0")
+      .GET()
+      .build();
+    HttpResponse<String> branchResponse = HTTP_CLIENT.send(branchRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    if (branchResponse.statusCode() < 200 || branchResponse.statusCode() >= 300) {
+      throw new IllegalStateException(
+        "Branch lookup failed with status " + branchResponse.statusCode()
+          + ": " + summarizeUpstreamErrorBody(branchResponse.body())
+      );
+    }
+    JsonObject branchObj = JsonParser.parseString(firstNonBlank(branchResponse.body(), "{}")).getAsJsonObject();
+    String commitId = resolveBranchCommitId(branchObj);
+    if (commitId == null || commitId.isBlank()) {
+      throw new IllegalStateException("Could not resolve latest commit ID from selected branch");
+    }
+    return commitId;
+  }
+
+  static String parseNextCursor(String linkHeader) {
+    if (linkHeader == null || linkHeader.isBlank()) {
+      return null;
+    }
+    for (String rel : new String[] {"rel=\"next\"", "rel=next"}) {
+      if (!linkHeader.contains(rel)) {
+        continue;
+      }
+      for (String part : linkHeader.split(",")) {
+        if (!part.contains(rel)) {
+          continue;
+        }
+        String urlPart = part.split(";", 2)[0].trim();
+        if (urlPart.startsWith("<") && urlPart.endsWith(">")) {
+          urlPart = urlPart.substring(1, urlPart.length() - 1);
+        }
+        int queryIndex = urlPart.indexOf('?');
+        String query = queryIndex >= 0 ? urlPart.substring(queryIndex + 1) : "";
+        for (String qp : query.split("&")) {
+          if (qp.startsWith("page.after=")) {
+            return URLDecoder.decode(qp.substring("page.after=".length()), StandardCharsets.UTF_8);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  static String fetchElementsForBranch(String apiBase, String projectId, String branchId, String bearerToken) throws Exception {
+    String apiBaseClean = firstNonBlank(apiBase).replaceAll("/+$", "");
+    log("[elements] fetch start: apiBase=" + apiBaseClean
+      + ", projectId=" + projectId
+      + ", branchId=" + branchId);
+    String commitId = resolveBranchHeadCommitId(apiBaseClean, projectId, branchId, bearerToken);
+    log("[elements] resolved commitId=" + commitId + " for branchId=" + branchId);
+
+    JsonArray allElements = new JsonArray();
+    String nextCursor = null;
+    while (true) {
+      String url = apiBaseClean + "/projects/" + projectId + "/commits/" + commitId + "/elements";
+      if (nextCursor != null && !nextCursor.isBlank()) {
+        url += "?page.after=" + URLEncoder.encode(nextCursor, StandardCharsets.UTF_8);
+      }
+      HttpRequest elementsRequest = HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .timeout(java.time.Duration.ofSeconds(120))
+        .header("Accept", "application/json")
+        .header("Authorization", bearerToken)
+        .header("User-Agent", "sysmlv2viz-elements/1.0")
+        .GET()
+        .build();
+      HttpResponse<String> elementsResponse = HTTP_CLIENT.send(elementsRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+      log("[elements] upstream response: status=" + elementsResponse.statusCode()
+        + ", cursor=" + firstNonBlank(nextCursor, "(start)")
+        + ", summary=" + summarizeUpstreamErrorBody(elementsResponse.body()));
+      if (elementsResponse.statusCode() < 200 || elementsResponse.statusCode() >= 300) {
+        throw new IllegalStateException(
+          "Elements fetch failed with status " + elementsResponse.statusCode()
+          + ": " + summarizeUpstreamErrorBody(elementsResponse.body())
+        );
+      }
+      JsonArray page = normalizeElementList(JsonParser.parseString(firstNonBlank(elementsResponse.body(), "[]")));
+      for (JsonElement entry : page) {
+        allElements.add(entry);
+      }
+      String parsedNextCursor = parseNextCursor(elementsResponse.headers().firstValue("Link").orElse(""));
+      if (parsedNextCursor == null || parsedNextCursor.isBlank() || page.size() == 0) {
+        break;
+      }
+      nextCursor = parsedNextCursor;
+    }
+    log("[elements] aggregated element count=" + allElements.size());
+    return GSON.toJson(allElements);
+  }
+
+  static String fetchTextualForModelJson(String apiBase, String bearerToken, String modelJson) throws Exception {
+    String apiBaseClean = firstNonBlank(apiBase).replaceAll("/+$", "");
+    if (apiBaseClean.isBlank()) {
+      throw new IllegalArgumentException("Missing apiBase");
+    }
+    log("[textual/fromjson] upstream request: modelJsonLength=" + (modelJson == null ? -1 : modelJson.length())
+      + ", preview=" + summarizeUpstreamErrorBody(modelJson));
+    HttpRequest.Builder builder = HttpRequest.newBuilder()
+      .uri(URI.create(apiBaseClean + "/textual/fromjson"))
+      .timeout(java.time.Duration.ofSeconds(120))
+      .header("Accept", "text/plain")
+      .header("Content-Type", "application/json")
+      .header("User-Agent", "sysmlv2viz-textual-fromjson/1.0")
+      .POST(HttpRequest.BodyPublishers.ofString(modelJson, StandardCharsets.UTF_8));
+    if (bearerToken != null && !bearerToken.isBlank()) {
+      builder.header("Authorization", bearerToken);
+    }
+    HttpResponse<String> response = HTTP_CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    log("[textual/fromjson] upstream response: status=" + response.statusCode()
+      + ", summary=" + summarizeUpstreamErrorBody(response.body()));
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new IllegalStateException(
+        "Textual conversion failed with status " + response.statusCode()
+          + ": " + summarizeUpstreamErrorBody(response.body())
+      );
+    }
+    return firstNonBlank(response.body());
+  }
+
+  static JsonArray normalizeCollectionList(JsonElement parsed, String... keys) {
+    if (parsed == null) {
+      return new JsonArray();
+    }
+    if (parsed.isJsonArray()) {
+      return parsed.getAsJsonArray();
+    }
+    if (!parsed.isJsonObject()) {
+      return new JsonArray();
+    }
+    JsonObject obj = parsed.getAsJsonObject();
+    for (String key : keys) {
+      if (key == null || key.isBlank()) {
+        continue;
+      }
+      JsonElement value = obj.get(key);
+      if (value != null && value.isJsonArray()) {
+        return value.getAsJsonArray();
+      }
+    }
+    return new JsonArray();
+  }
+
+  static JsonArray normalizeProjectList(JsonElement parsed) {
+    JsonArray rawProjects = normalizeCollectionList(parsed, "elements", "items", "projects");
 
     JsonArray projects = new JsonArray();
     for (JsonElement element : rawProjects) {
@@ -1769,14 +2481,19 @@ public class SysMLVizServer {
     HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     if (response.statusCode() < 200 || response.statusCode() >= 300) {
       String errorBody = firstNonBlank(response.body());
-      // Flexo MMS returns 500 when a project has only its default branch (message contains
-      // "no branches" or the typo variant "no braches"). Fall back to the project object.
       if (response.statusCode() == 500) {
-        String lower = errorBody.toLowerCase();
-        if (lower.contains("no branch") || lower.contains("no brach")) {
-          log("[branches] API returned 500 (no branches beyond default), falling back to project default branch");
-          return fetchDefaultBranchFromProject(resolvedApiBase.replaceAll("/+$", ""), projectId, resolvedToken);
+        log("[branches] API returned 500 for projectId=" + projectId
+          + ", attempting project default branch fallback. Body=" + errorBody);
+        JsonArray fallbackBranches = fetchDefaultBranchFromProject(
+          resolvedApiBase.replaceAll("/+$", ""),
+          projectId,
+          resolvedToken
+        );
+        if (fallbackBranches.size() > 0) {
+          log("[branches] project default branch fallback succeeded for projectId=" + projectId);
+          return fallbackBranches;
         }
+        log("[branches] project default branch fallback returned no branches for projectId=" + projectId);
       }
       throw new IllegalStateException("Branch lookup failed with status " + response.statusCode() + ": " + errorBody);
     }
@@ -1785,15 +2502,7 @@ public class SysMLVizServer {
     // branch objects). The individual GET /branches/{id} endpoint always returns the correct name.
     // So we collect IDs from the list, then fetch each branch individually.
     JsonElement parsed = JsonParser.parseString(firstNonBlank(response.body(), "[]"));
-    JsonArray rawBranches;
-    if (parsed.isJsonArray()) {
-      rawBranches = parsed.getAsJsonArray();
-    } else if (parsed.isJsonObject() && parsed.getAsJsonObject().has("elements")) {
-      JsonElement elements = parsed.getAsJsonObject().get("elements");
-      rawBranches = elements.isJsonArray() ? elements.getAsJsonArray() : new JsonArray();
-    } else {
-      rawBranches = new JsonArray();
-    }
+    JsonArray rawBranches = normalizeCollectionList(parsed, "elements", "items", "branches");
 
     List<String> branchIds = new ArrayList<>();
     Set<String> seenIds = new HashSet<>();
@@ -1832,13 +2541,35 @@ public class SysMLVizServer {
         detail.has("name") && !detail.get("name").isJsonNull() ? detail.get("name").getAsString() : null,
         "(unnamed)"
       );
+      String commitId = resolveBranchCommitId(detail);
       JsonObject normalized = new JsonObject();
       normalized.addProperty("id", branchId);
       normalized.addProperty("name", name);
+      normalized.addProperty("commitId", commitId);
       log("[branches] fetched branch: id=" + branchId + " name=" + name);
       branches.add(normalized);
     }
     return branches;
+  }
+
+  static String resolveBranchCommitId(JsonObject branch) {
+    if (branch == null) return "";
+    if (branch.has("referencedCommit") && branch.get("referencedCommit").isJsonObject()) {
+      JsonObject ref = branch.getAsJsonObject("referencedCommit");
+      String commitId = firstNonBlank(
+        ref.has("@id") && !ref.get("@id").isJsonNull() ? ref.get("@id").getAsString() : null,
+        ref.has("id") && !ref.get("id").isJsonNull() ? ref.get("id").getAsString() : null
+      );
+      if (!commitId.isBlank()) return commitId;
+    }
+    if (branch.has("head") && branch.get("head").isJsonObject()) {
+      JsonObject head = branch.getAsJsonObject("head");
+      return firstNonBlank(
+        head.has("@id") && !head.get("@id").isJsonNull() ? head.get("@id").getAsString() : null,
+        head.has("id") && !head.get("id").isJsonNull() ? head.get("id").getAsString() : null
+      );
+    }
+    return "";
   }
 
   static JsonArray fetchDefaultBranchFromProject(String apiBase, String projectId, String bearerToken) throws Exception {
@@ -1871,6 +2602,7 @@ public class SysMLVizServer {
       defaultBranch.has("name") && !defaultBranch.get("name").isJsonNull() ? defaultBranch.get("name").getAsString() : null,
       "main"
     ));
+    normalized.addProperty("commitId", resolveBranchCommitId(defaultBranch));
     JsonArray result = new JsonArray();
     result.add(normalized);
     return result;
@@ -2116,6 +2848,12 @@ public class SysMLVizServer {
           send(ex, 200, "text/html; charset=utf-8", html);
           return;
         }
+        if (requestPath.equals("/favicon.ico") || requestPath.equals("/starforge_favicon.png")) {
+          byte[] bytes = Files.readAllBytes(Path.of("static/starforge_favicon.png"));
+          log("[root] served static/starforge_favicon.png");
+          send(ex, 200, "image/png", bytes);
+          return;
+        }
         String filename = requestPath.replaceFirst("^/", "");
         if (!filename.contains("/") && !filename.contains("..")) {
           Path staticFile = Path.of("static", filename);
@@ -2349,6 +3087,8 @@ public class SysMLVizServer {
         String branchName  = firstNonBlank(q.get("branchName"));
         String branchId    = firstNonBlank(q.get("branchId"));
         String elementName = firstNonBlank(q.get("element"));
+        String rootNamespaceId = firstNonBlank(q.get("rootNamespaceId"));
+        String rootNamespaceName = firstNonBlank(q.get("rootNamespaceName"));
         String format = firstNonBlank(q.get("format"), "svg").toLowerCase();
         String view = firstNonBlank(q.get("view"));
         String style = firstNonBlank(q.get("style"));
@@ -2364,7 +3104,10 @@ public class SysMLVizServer {
           style
         );
 
-        log("[render] request start: " + requestSummary + ", apiBaseSource=" + apiBaseSource(requestApiBase));
+        log("[render] request start: " + requestSummary
+          + ", rootNamespaceId=" + firstNonBlank(rootNamespaceId, "(none)")
+          + ", rootNamespaceName=" + firstNonBlank(rootNamespaceName, "(none)")
+          + ", apiBaseSource=" + apiBaseSource(requestApiBase));
 
 
         if (apiBase.isBlank()) {
@@ -2402,22 +3145,30 @@ public class SysMLVizServer {
             }
             log("[render] load complete");
 
-            log("[render] resolve start: " + firstNonBlank(elementName, "(top-level)"));
-            Element resolvedElement = resolveLoadedElement(renderSysml, elementName);
+            String resolutionTarget = TEXTUAL_MODEL_SERVICE.resolutionTargetSummary(
+              elementName,
+              rootNamespaceId,
+              rootNamespaceName
+            );
+            log("[render] resolve start: " + resolutionTarget);
+            Element resolvedElement = resolveLoadedElement(
+              renderSysml,
+              elementName,
+              rootNamespaceId,
+              rootNamespaceName
+            );
             if (resolvedElement == null) {
-              log("[render] resolve failed: " + firstNonBlank(elementName, "(top-level)"));
-              throw new IllegalArgumentException("Element not found or not resolvable: " + firstNonBlank(elementName, "(top-level)"));
+              log("[render] resolve failed: " + resolutionTarget);
+              throw new IllegalArgumentException("Element not found or not resolvable: " + resolutionTarget);
             }
-            log("[render] resolve complete: qualifiedName=" + resolvedElement.getQualifiedName());
-
-            int removedChainings = sanitizeBrokenFeatureChainings(resolvedElement);
-            if (removedChainings > 0) {
-              log("[render] sanitized " + removedChainings + " broken feature chaining entries");
-            }
+            log("[render] resolve complete: qualifiedName=" + safeDisplayName(resolvedElement));
 
             log("[render] viz start");
-            VizResult result = normalizeVizResult(
-              vizResolvedElement(renderSysml, resolvedElement, viewParams, styleParams)
+            VizResult result = renderResolvedSelection(
+              renderSysml,
+              resolvedElement,
+              viewParams,
+              styleParams
             );
             log("[render] viz complete");
             return result;
@@ -2509,6 +3260,30 @@ public class SysMLVizServer {
       }
     });
 
+    server.createContext("/settings", (HttpExchange ex) -> {
+      try {
+        log("[settings] " + ex.getRequestMethod() + " " + ex.getRequestURI());
+        byte[] html = Files.readAllBytes(Path.of("static/settings.html"));
+        log("[settings] served settings.html");
+        send(ex, 200, "text/html; charset=utf-8", html);
+      } catch (Exception e) {
+        logException("[settings] request exception", e);
+        sendText(ex, 500, "text/plain; charset=utf-8", stackTrace(e));
+      }
+    });
+
+    server.createContext("/solari", (HttpExchange ex) -> {
+      try {
+        log("[solari] " + ex.getRequestMethod() + " " + ex.getRequestURI());
+        byte[] html = Files.readAllBytes(Path.of("static/solari.html"));
+        log("[solari] served solari.html");
+        send(ex, 200, "text/html; charset=utf-8", html);
+      } catch (Exception e) {
+        logException("[solari] request exception", e);
+        sendText(ex, 500, "text/plain; charset=utf-8", stackTrace(e));
+      }
+    });
+
     server.createContext("/textual", (HttpExchange ex) -> {
       try {
         log("[textual] " + ex.getRequestMethod() + " " + ex.getRequestURI());
@@ -2529,6 +3304,8 @@ public class SysMLVizServer {
         String elementName = request.elementName();
         log("[textual] request start: "
           + requestSummary(apiBase, projectName, projectId, branchName, branchId, elementName, "sysml", "", "")
+          + ", rootNamespaceId=" + firstNonBlank(request.rootNamespaceId(), "(none)")
+          + ", rootNamespaceName=" + firstNonBlank(request.rootNamespaceName(), "(none)")
           + ", apiBaseSource=" + apiBaseSource(requestApiBase));
 
         if (apiBase.isBlank()) {
@@ -2561,6 +3338,142 @@ public class SysMLVizServer {
         sendText(ex, 500, "text/plain; charset=utf-8", e.getMessage());
       } catch (Exception e) {
         logException("[textual] request exception", e);
+        sendText(ex, 500, "text/plain; charset=utf-8", stackTrace(e));
+      }
+    });
+
+    server.createContext("/textual/fromjson", (HttpExchange ex) -> {
+      try {
+        log("[textual/fromjson] " + ex.getRequestMethod() + " " + ex.getRequestURI());
+        if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
+          sendText(ex, 405, "text/plain; charset=utf-8", "Use POST");
+          return;
+        }
+        String body = readBody(ex);
+        if (body == null || body.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing request body");
+          return;
+        }
+        JsonObject request = parseJsonObject(body);
+        String requestApiBase = jsonString(request, "apiBase");
+        String apiBase = apiBaseFromRequest(requestApiBase);
+        String bearerToken = bearerTokenFromRequest(ex, request);
+        String modelJson = firstNonBlank(jsonString(request, "modelJson"));
+        if (modelJson.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing modelJson");
+          return;
+        }
+        if (apiBase.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing apiBase");
+          return;
+        }
+
+        String text = runWithTimeout(
+          "[textual/fromjson] serialize",
+          () -> fetchTextualForModelJson(apiBase, bearerToken, modelJson),
+          TEXTUAL_TIMEOUT_MS
+        );
+
+        sendText(ex, 200, "text/plain; charset=utf-8", text);
+      } catch (IllegalArgumentException e) {
+        log("[textual/fromjson] request error: " + e.getMessage());
+        sendText(ex, 400, "text/plain; charset=utf-8", e.getMessage());
+      } catch (IllegalStateException e) {
+        log("[textual/fromjson] request error: " + e.getMessage());
+        sendText(ex, 500, "text/plain; charset=utf-8", e.getMessage());
+      } catch (RenderTimeoutException e) {
+        log("[textual/fromjson] timeout: " + e.getMessage());
+        sendText(ex, 504, "text/plain; charset=utf-8", e.getMessage());
+      } catch (Exception e) {
+        logException("[textual/fromjson] request exception", e);
+        sendText(ex, 500, "text/plain; charset=utf-8", stackTrace(e));
+      }
+    });
+
+    server.createContext("/renderText", (HttpExchange ex) -> {
+      try {
+        log("[renderText] " + ex.getRequestMethod() + " " + ex.getRequestURI());
+        if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
+          sendText(ex, 405, "text/plain; charset=utf-8", "Use POST");
+          return;
+        }
+        String body = readBody(ex);
+        if (body == null || body.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing request body");
+          return;
+        }
+        JsonObject request = parseJsonObject(body);
+        String modelText = firstNonBlank(jsonString(request, "modelText"));
+        String elementName = firstNonBlank(jsonString(request, "element"));
+        String format = firstNonBlank(jsonString(request, "format"), "svg").toLowerCase();
+        String view = firstNonBlank(jsonString(request, "view"));
+        String style = firstNonBlank(jsonString(request, "style"));
+        if (modelText.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing modelText");
+          return;
+        }
+        List<String> viewParams = view.isBlank()
+          ? Collections.emptyList()
+          : Collections.singletonList(view.trim());
+        List<String> styleParams = style.isBlank()
+          ? Collections.emptyList()
+          : Collections.singletonList(style.trim());
+
+        VizResult vr = runWithTimeout(
+          "[renderText] model render",
+          () -> TEXTUAL_MODEL_SERVICE.renderProcessedModel(modelText, elementName, viewParams, styleParams)
+        );
+        if (vr == null) {
+          sendText(ex, 500, "text/plain; charset=utf-8", "VizResult was null");
+          return;
+        }
+        if (vr.hasException()) {
+          sendText(ex, 500, "text/plain; charset=utf-8", vr.formatException());
+          return;
+        }
+
+        switch (format) {
+          case "svg": {
+            String svg = vr.getSVG();
+            if (svg == null || svg.isBlank()) {
+              sendText(ex, 500, "text/plain; charset=utf-8", emptyFormatMessage(vr, "SVG"));
+              return;
+            }
+            sendText(ex, 200, "image/svg+xml; charset=utf-8", svg);
+            return;
+          }
+          case "plantuml":
+          case "puml": {
+            String puml = vr.getPlantUML();
+            if (puml == null || puml.isBlank()) {
+              sendText(ex, 500, "text/plain; charset=utf-8", emptyFormatMessage(vr, "PlantUML"));
+              return;
+            }
+            sendText(ex, 200, "text/plain; charset=utf-8", puml);
+            return;
+          }
+          case "text":
+          case "txt": {
+            String txt = vr.getText();
+            if (txt == null || txt.isBlank()) {
+              sendText(ex, 500, "text/plain; charset=utf-8", emptyFormatMessage(vr, "text"));
+              return;
+            }
+            sendText(ex, 200, "text/plain; charset=utf-8", txt);
+            return;
+          }
+          default:
+            sendText(ex, 400, "text/plain; charset=utf-8",
+              "Unsupported format='" + format + "'. Use svg|plantuml|text");
+        }
+      } catch (RenderTimeoutException e) {
+        log("[renderText] timeout: " + e.getMessage());
+        sendText(ex, 504, "text/plain; charset=utf-8", e.getMessage());
+      } catch (IllegalArgumentException e) {
+        log("[renderText] request error: " + e.getMessage());
+        sendText(ex, 400, "text/plain; charset=utf-8", e.getMessage());
+      } catch (Exception e) {
+        logException("[renderText] request exception", e);
         sendText(ex, 500, "text/plain; charset=utf-8", stackTrace(e));
       }
     });
@@ -2766,61 +3679,9 @@ public class SysMLVizServer {
           sendText(ex, 400, "text/plain; charset=utf-8", "Missing bearer token");
           return;
         }
-        String apiBaseClean = apiBase.replaceAll("/+$", "");
-
-        // Resolve the head commit ID from the branch detail
-        HttpRequest branchRequest = HttpRequest.newBuilder()
-          .uri(URI.create(apiBaseClean + "/projects/" + projectId + "/branches/" + branchId))
-          .timeout(java.time.Duration.ofSeconds(30))
-          .header("Accept", "application/json")
-          .header("Authorization", bearerToken)
-          .header("User-Agent", "sysmlv2viz-elements/1.0")
-          .GET()
-          .build();
-        HttpResponse<String> branchResponse = HTTP_CLIENT.send(branchRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (branchResponse.statusCode() < 200 || branchResponse.statusCode() >= 300) {
-          sendText(ex, 502, "text/plain; charset=utf-8",
-            "Branch lookup failed with status " + branchResponse.statusCode());
-          return;
-        }
-        JsonObject branchObj = JsonParser.parseString(firstNonBlank(branchResponse.body(), "{}")).getAsJsonObject();
-        String commitId = null;
-        if (branchObj.has("head") && branchObj.get("head").isJsonObject()) {
-          JsonObject headObj = branchObj.getAsJsonObject("head");
-          commitId = firstNonBlank(headObj.has("@id") && !headObj.get("@id").isJsonNull()
-            ? headObj.get("@id").getAsString() : null);
-        }
-        if ((commitId == null || commitId.isBlank())
-            && branchObj.has("referencedCommit")
-            && branchObj.get("referencedCommit").isJsonObject()) {
-          JsonObject ref = branchObj.getAsJsonObject("referencedCommit");
-          commitId = firstNonBlank(ref.has("@id") && !ref.get("@id").isJsonNull()
-            ? ref.get("@id").getAsString() : null);
-        }
-        if (commitId == null || commitId.isBlank()) {
-          sendText(ex, 502, "text/plain; charset=utf-8", "Could not resolve commit ID from branch");
-          return;
-        }
-        log("[elements] resolved commitId=" + commitId + " for branchId=" + branchId);
-
-        // Fetch all elements for that commit from Flexo
-        HttpRequest elementsRequest = HttpRequest.newBuilder()
-          .uri(URI.create(apiBaseClean + "/projects/" + projectId + "/commits/" + commitId + "/elements"))
-          .timeout(java.time.Duration.ofSeconds(120))
-          .header("Accept", "application/json")
-          .header("Authorization", bearerToken)
-          .header("User-Agent", "sysmlv2viz-elements/1.0")
-          .GET()
-          .build();
-        HttpResponse<String> elementsResponse = HTTP_CLIENT.send(elementsRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (elementsResponse.statusCode() < 200 || elementsResponse.statusCode() >= 300) {
-          sendText(ex, 502, "text/plain; charset=utf-8",
-            "Elements fetch failed with status " + elementsResponse.statusCode()
-            + ": " + firstNonBlank(elementsResponse.body()));
-          return;
-        }
-        log("[elements] fetch complete: bodyLength=" + elementsResponse.body().length());
-        byte[] responseBytes = elementsResponse.body().getBytes(StandardCharsets.UTF_8);
+        String elementsBody = fetchElementsForBranch(apiBase, projectId, branchId, bearerToken);
+        log("[elements] fetch complete: bodyLength=" + elementsBody.length());
+        byte[] responseBytes = elementsBody.getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
         ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"elements.json\"");
         ex.getResponseHeaders().set("Cache-Control", "no-store");
@@ -2829,8 +3690,82 @@ public class SysMLVizServer {
       } catch (IllegalArgumentException e) {
         log("[elements] request error: " + e.getMessage());
         sendText(ex, 400, "text/plain; charset=utf-8", e.getMessage());
+      } catch (IllegalStateException e) {
+        log("[elements] request error: " + e.getMessage());
+        sendText(ex, 502, "text/plain; charset=utf-8", e.getMessage());
       } catch (Exception e) {
         logException("[elements] request exception", e);
+        sendText(ex, 500, "text/plain; charset=utf-8", stackTrace(e));
+      }
+    });
+
+    server.createContext("/elements/roots", (HttpExchange ex) -> {
+      try {
+        log("[elements/roots] " + ex.getRequestMethod() + " " + ex.getRequestURI());
+        if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
+          sendText(ex, 405, "text/plain; charset=utf-8", "Use POST");
+          return;
+        }
+        String body = readBody(ex);
+        if (body == null || body.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing request body");
+          return;
+        }
+        JsonObject request = parseJsonObject(body);
+        String requestApiBase = jsonString(request, "apiBase");
+        String apiBase = apiBaseFromRequest(requestApiBase);
+        String bearerToken = bearerTokenFromRequest(ex, request);
+        String projectId = firstNonBlank(jsonString(request, "projectId"));
+        String branchId = firstNonBlank(jsonString(request, "branchId"));
+        if (apiBase.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing apiBase");
+          return;
+        }
+        if (projectId.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing projectId");
+          return;
+        }
+        if (branchId.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing branchId");
+          return;
+        }
+        if (bearerToken.isBlank()) {
+          sendText(ex, 400, "text/plain; charset=utf-8", "Missing bearer token");
+          return;
+        }
+
+        String elementsBody = fetchElementsForBranch(apiBase, projectId, branchId, bearerToken);
+        JsonArray elements = normalizeElementList(JsonParser.parseString(elementsBody));
+        List<RootNamespaceChunk> rootDocuments = splitRootNamespaceDocuments(elements);
+        log("[elements/roots] split complete: sourceElementCount=" + elements.size()
+          + ", rootCount=" + rootDocuments.size());
+
+        JsonArray roots = new JsonArray();
+        for (RootNamespaceChunk chunk : rootDocuments) {
+          JsonObject root = new JsonObject();
+          root.addProperty("id", chunk.rootId);
+          root.addProperty("name", firstNonBlank(chunk.rootName, chunk.rootId));
+          root.addProperty("elementCount", chunk.elements.size());
+          root.addProperty("modelJson", GSON.toJson(chunk.elements));
+          roots.add(root);
+          log("[elements/roots] root: id=" + chunk.rootId
+            + ", name=" + firstNonBlank(chunk.rootName, chunk.rootId)
+            + ", elementCount=" + chunk.elements.size());
+        }
+
+        JsonObject response = new JsonObject();
+        response.addProperty("count", roots.size());
+        response.addProperty("sourceElementCount", elements.size());
+        response.add("roots", roots);
+        sendText(ex, 200, "application/json; charset=utf-8", GSON.toJson(response));
+      } catch (IllegalArgumentException e) {
+        log("[elements/roots] request error: " + e.getMessage());
+        sendText(ex, 400, "text/plain; charset=utf-8", e.getMessage());
+      } catch (IllegalStateException e) {
+        log("[elements/roots] request error: " + e.getMessage());
+        sendText(ex, 502, "text/plain; charset=utf-8", e.getMessage());
+      } catch (Exception e) {
+        logException("[elements/roots] request exception", e);
         sendText(ex, 500, "text/plain; charset=utf-8", stackTrace(e));
       }
     });
@@ -2871,14 +3806,17 @@ public class SysMLVizServer {
         String elementName = jsonStringField(body, "element");
         String modelJson   = jsonStringField(body, "modelJson");
         String format      = jsonStringField(body, "format");
+        String view        = jsonStringField(body, "view");
+        String style       = jsonStringField(body, "style");
         if (format == null || format.isBlank()) format = "svg";
         format = format.trim().toLowerCase();
+        List<String> viewParams = firstNonBlank(view).isBlank()
+          ? Collections.emptyList()
+          : Collections.singletonList(view.trim());
+        List<String> styleParams = firstNonBlank(style).isBlank()
+          ? Collections.emptyList()
+          : Collections.singletonList(style.trim());
 
-        if (elementName == null || elementName.isBlank()) {
-          log("[renderJson] request rejected: missing element");
-          sendText(ex, 400, "text/plain; charset=utf-8", "Missing element");
-          return;
-        }
         if (modelJson == null || modelJson.isBlank()) {
           log("[renderJson] request rejected: missing modelJson");
           sendText(ex, 400, "text/plain; charset=utf-8", "Missing modelJson");
@@ -2908,18 +3846,13 @@ public class SysMLVizServer {
               log("[renderJson] json model loaded");
             }
 
-            Element rootElement = sysml.getRootElement();
-            int removedChainings = sanitizeBrokenFeatureChainings(rootElement);
-            if (removedChainings > 0) {
-              log("[renderJson] sanitized " + removedChainings + " broken feature chaining entries");
-            }
-
-            return vizByElementName(
-                sysml,
-                elementName,
-                Collections.emptyList(),   // views
-                Collections.emptyList(),   // styles
-                Collections.emptyList()    // help
+            return renderLoadedSelection(
+              sysml,
+              elementName,
+              "",
+              "",
+              viewParams,
+              styleParams
             );
           }
         });

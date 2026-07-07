@@ -1,0 +1,303 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 Planetary Utilities, Inc. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SysML v2 Web · Settings</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+  <style>
+    :root {
+      --bg: #f0f2f7;
+      --panel: #ffffff;
+      --border: #dde2ea;
+      --ink: #131e4a;
+      --muted: #5a6585;
+      --accent: #f43f5e;
+      --accent-dark: #e02044;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      background: linear-gradient(160deg, #e4e8f0 0%, var(--bg) 60%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    .site-header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(19, 30, 74, .06);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .site-header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 20px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    .logo-starforge { height: 36px; width: auto; }
+    .brand-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .site-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -.01em;
+      white-space: nowrap;
+    }
+    .site-nav { display: flex; gap: 2px; }
+    .nav-link {
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      transition: color .12s, background .12s;
+      white-space: nowrap;
+    }
+    .nav-link:hover { color: var(--ink); background: var(--bg); }
+    .nav-link.active {
+      color: var(--accent);
+      background: rgba(244, 63, 94, .08);
+      font-weight: 600;
+    }
+    .page-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .panel {
+      max-width: 760px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 1px 4px rgba(19, 30, 74, .05);
+    }
+    .panel h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+    }
+    .panel p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .settings-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      align-items: flex-end;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    input {
+      font: inherit;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 8px 10px;
+      border-radius: 8px;
+      min-width: 180px;
+    }
+    input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      border-color: transparent;
+    }
+    .wide { min-width: 320px; }
+    .hint {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .76);
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="header-brand">
+        <img src="starforge-logo.png" alt="Starforge" class="logo-starforge" />
+        <div class="brand-divider"></div>
+        <span class="site-name">SysML v2 Web</span>
+      </div>
+      <nav class="site-nav" id="siteNav">
+        <a href="" class="nav-link" id="navTextEditor">Text Editor</a>
+        <a href="" class="nav-link" id="navDiagramViewer">Diagram Viewer</a>
+        <a href="" class="nav-link active" id="navSettings">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <section class="panel">
+      <h1>Connection Settings</h1>
+      <p>These values are shared by the diagram viewer and text editor. Changes save automatically in this browser.</p>
+      <div class="settings-grid">
+        <label id="baseField">Repo base URL
+          <input id="base" value="" placeholder="https://experimental.starforge.app/" />
+        </label>
+        <label id="tokenField">Bearer token
+          <input id="token" value="" type="password" placeholder="Bearer ..." />
+        </label>
+        <button id="loadProjectsBtn" type="button">Load Projects</button>
+      </div>
+      <div class="note" id="status">Saved automatically.</div>
+    </section>
+    <div class="hint" id="configHint"></div>
+  </main>
+
+  <script>
+    const STORAGE_KEYS = {
+      apiBase: "sysmlviz.apiBase",
+      bearerToken: "sysmlviz.bearerToken"
+    };
+
+    async function loadConfig() {
+      try {
+        const res = await fetch("config", { cache: "no-store" });
+        if (!res.ok) return {};
+        return await res.json();
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function shouldForceServerConnectionSettings(config) {
+      return config.uiMode === "embedded" || config.allowUiApiOverride === false;
+    }
+
+    function hasStoredValue(storageKey) {
+      return localStorage.getItem(storageKey) !== null;
+    }
+
+    function seedConnectionSettings(config) {
+      const forceServerSettings = shouldForceServerConnectionSettings(config);
+      if (config.apiBase) {
+        if (forceServerSettings || !hasStoredValue(STORAGE_KEYS.apiBase)) {
+          localStorage.setItem(STORAGE_KEYS.apiBase, config.apiBase.trim());
+        }
+      }
+      if (config.apiToken) {
+        if (forceServerSettings || !hasStoredValue(STORAGE_KEYS.bearerToken)) {
+          localStorage.setItem(STORAGE_KEYS.bearerToken, config.apiToken.trim());
+        }
+      }
+    }
+
+    function loadPersistedFields() {
+      const base  = localStorage.getItem(STORAGE_KEYS.apiBase)      || "";
+      const token = localStorage.getItem(STORAGE_KEYS.bearerToken)  || "";
+      document.getElementById("base").value  = base;
+      document.getElementById("token").value = token;
+      // Persist whatever is shown so the key always exists after visiting settings.
+      if (base)  localStorage.setItem(STORAGE_KEYS.apiBase, base);
+      if (token) localStorage.setItem(STORAGE_KEYS.bearerToken, token);
+    }
+
+    function installPersistence() {
+      for (const [fieldId, storageKey] of Object.entries({
+        base: STORAGE_KEYS.apiBase,
+        token: STORAGE_KEYS.bearerToken
+      })) {
+        const persistValue = (event) => {
+          localStorage.setItem(storageKey, event.target.value);
+          document.getElementById("status").textContent = "Saved automatically.";
+        };
+        document.getElementById(fieldId).addEventListener("input", persistValue);
+        document.getElementById(fieldId).addEventListener("change", persistValue);
+      }
+    }
+
+    async function loadProjects() {
+      const base  = localStorage.getItem(STORAGE_KEYS.apiBase)     || "";
+      const token = localStorage.getItem(STORAGE_KEYS.bearerToken) || "";
+      const status = document.getElementById("status");
+      status.textContent = "Loading projects...";
+      try {
+        const res = await fetch("../projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiBase: base, bearerToken: token })
+        });
+        const text = await res.text();
+        if (!res.ok) {
+          status.textContent = text || "Failed to load projects";
+          return;
+        }
+        const payload = JSON.parse(text);
+        const count = Array.isArray(payload.projects) ? payload.projects.length : 0;
+        status.textContent = `Loaded ${count} projects.`;
+      } catch (err) {
+        status.textContent = err.message || String(err);
+      }
+    }
+
+    function configureNavLinks() {
+      const staticPreview = location.pathname.endsWith(".html") || location.protocol === "file:";
+      document.getElementById("navTextEditor").href    = staticPreview ? "./editor.html"  : "/editor";
+      document.getElementById("navDiagramViewer").href = staticPreview ? "./index.html"   : "/";
+      document.getElementById("navSettings").href      = staticPreview ? "./settings.html": "/settings";
+    }
+
+    function applyConfig(config) {
+      seedConnectionSettings(config);
+      document.getElementById("siteNav").style.display = config.uiMode === "embedded" ? "none" : "";
+      document.getElementById("baseField").style.display = config.showApiBaseField === false ? "none" : "";
+      document.getElementById("tokenField").style.display = config.showBearerTokenField === false ? "none" : "";
+      const base  = localStorage.getItem(STORAGE_KEYS.apiBase)     || "";
+      const token = localStorage.getItem(STORAGE_KEYS.bearerToken) || "";
+      document.getElementById("configHint").textContent = base || token
+        ? "Settings are stored locally in this browser."
+        : "No connection settings are saved yet.";
+    }
+
+    (async () => {
+      configureNavLinks();
+      installPersistence();
+      document.getElementById("loadProjectsBtn").addEventListener("click", () => {
+        loadProjects().catch((err) => {
+          document.getElementById("status").textContent = err.message || String(err);
+        });
+      });
+      const config = await loadConfig();
+      applyConfig(config);
+      loadPersistedFields();
+    })().catch((err) => {
+      document.getElementById("status").textContent = err.message || String(err);
+    });
+  </script>
+</body>
+</html>

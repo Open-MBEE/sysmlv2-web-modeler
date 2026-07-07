@@ -1,0 +1,559 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 Planetary Utilities, Inc. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solari Editor · Starforge</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+  <style>
+    :root {
+      --bg: #f0f2f7;
+      --panel: #ffffff;
+      --border: #dde2ea;
+      --ink: #131e4a;
+      --muted: #5a6585;
+      --accent: #f43f5e;
+      --accent-dark: #e02044;
+      --danger: #dc2626;
+      --success: #16a34a;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      background: linear-gradient(160deg, #e4e8f0 0%, var(--bg) 60%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Site header ──────────────────────────────────────── */
+    .site-header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(19, 30, 74, .06);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .site-header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 20px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    .logo-starforge { height: 36px; width: auto; }
+    .brand-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .site-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -.01em;
+      white-space: nowrap;
+    }
+    .site-nav { display: flex; gap: 2px; }
+    .nav-link {
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      transition: color .12s, background .12s;
+      white-space: nowrap;
+    }
+    .nav-link:hover { color: var(--ink); background: var(--bg); }
+    .nav-link.active {
+      color: var(--accent);
+      background: rgba(244, 63, 94, .08);
+      font-weight: 600;
+    }
+
+    /* ── Page content ─────────────────────────────────────── */
+    .page-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* ── Name section ─────────────────────────────────────── */
+    .name-section {
+      padding: 16px 20px 20px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: 0 1px 4px rgba(19, 30, 74, .04);
+      margin-bottom: 16px;
+    }
+    .name-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: flex-end;
+    }
+    .name-status {
+      margin-top: 10px;
+      font-size: 13px;
+      min-height: 1.4em;
+    }
+    .name-status.ok { color: var(--success); font-weight: 500; }
+    .name-status.error { color: var(--danger); font-weight: 500; }
+    .name-status.muted { color: var(--muted); }
+
+    /* ── Controls ─────────────────────────────────────────── */
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      margin-bottom: 14px;
+      align-items: flex-end;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    input, button, textarea { font: inherit; }
+    input {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      min-width: 260px;
+    }
+    input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      border-color: transparent;
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .12s;
+      background: var(--accent);
+      color: white;
+      white-space: nowrap;
+    }
+    button:hover { background: var(--accent-dark); }
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: var(--border);
+      color: var(--ink);
+    }
+    button.secondary:hover { background: #c9d0dc; }
+
+    /* ── Code editor shell ────────────────────────────────── */
+    .editor-shell {
+      display: flex;
+      width: 100%;
+      height: 58vh;
+    }
+    #lineNums {
+      flex-shrink: 0;
+      padding: 12px 10px 12px 12px;
+      text-align: right;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.45;
+      color: var(--muted);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: 10px 0 0 10px;
+      overflow: hidden;
+      user-select: none;
+      white-space: pre;
+      min-width: 2.5em;
+    }
+    .editor-content {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+    }
+    .editor-content textarea,
+    .editor-content pre {
+      box-sizing: border-box;
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      padding: 12px 14px;
+      border-radius: 0 10px 10px 0;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow: auto;
+      tab-size: 2;
+    }
+    .editor-content textarea {
+      position: relative;
+      z-index: 2;
+      background: transparent;
+      color: transparent;
+      caret-color: var(--ink);
+      border: 1px solid transparent;
+    }
+    .editor-content textarea::selection {
+      background: rgba(244, 63, 94, 0.18);
+    }
+    .editor-content pre {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--ink);
+    }
+    .tok-keyword { color: #9f1239; font-weight: 600; }
+    .tok-comment { color: #64748b; font-style: italic; }
+    .tok-string  { color: #0369a1; }
+
+    /* ── Status / diagnostics ─────────────────────────────── */
+    #status {
+      min-height: 1.4em;
+      margin: 6px 0 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    #status.error { color: var(--danger); }
+    #diagnostics {
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      white-space: pre-wrap;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 13px;
+      min-height: 6em;
+      box-shadow: 0 1px 4px rgba(19, 30, 74, .05);
+    }
+
+    /* ── Site footer ──────────────────────────────────────── */
+    .site-footer {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .logo-pu-footer { height: 18px; width: auto; opacity: .7; vertical-align: middle; }
+    .footer-sep { opacity: .4; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="header-brand">
+        <img src="starforge-logo.png" alt="Starforge" class="logo-starforge" />
+        <div class="brand-divider"></div>
+        <span class="site-name">SysML v2 Web</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-content">
+
+    <section class="name-section">
+      <div class="name-row">
+        <label>Solari name
+          <input id="solariName" placeholder="Enter a unique solari name" autocomplete="off" />
+        </label>
+        <button id="checkNameBtn" type="button">Check Name</button>
+      </div>
+      <div id="nameStatus" class="name-status muted"></div>
+    </section>
+
+    <section id="editorSection" style="display:none">
+      <div class="actions">
+        <button id="validateBtn" type="button">Validate</button>
+        <button id="saveBtn" type="button">Save</button>
+      </div>
+      <div id="status"></div>
+      <div class="editor-shell">
+        <div id="lineNums" aria-hidden="true">1</div>
+        <div class="editor-content">
+          <pre id="highlightedText" aria-hidden="true"></pre>
+          <textarea id="modelText" spellcheck="false"></textarea>
+        </div>
+      </div>
+      <div id="diagnostics"></div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <img src="pu-logo.png" alt="Planetary Utilities" class="logo-pu-footer" />
+    <span class="footer-sep">·</span>
+    <span>Part of <strong>Starforge</strong></span>
+  </footer>
+
+  <script>
+    // ── Hardcoded Flexo connection ─────────────────────────────────────────────
+    // Change these constants to target a different project or branch.
+    const SOLARI_API_BASE     = "https://experimental.starforge.app/";
+    const SOLARI_BEARER_TOKEN = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJmbGV4by1tbXMtYXVkaWVuY2UiLCJpc3MiOiJodHRwOi8vZmxleG8tbW1zLXNlcnZpY2VzIiwidXNlcm5hbWUiOiJ1c2VyMDEiLCJncm91cHMiOlsic3VwZXJfYWRtaW5zIl0sImV4cCI6MTgwMTIwOTYwMH0.xv6cRFq8KgtkuBJYGdwJSvgpktJUcWvsivSn9UJmwAk";
+    const SOLARI_PROJECT_ID   = ""; // TODO: set to target project UUID
+    const SOLARI_BRANCH_ID    = ""; // TODO: set to target branch UUID
+    // ──────────────────────────────────────────────────────────────────────────
+
+    const SYSML_KEYWORDS = new Set([
+      "about", "abstract", "accept", "action", "actor", "after", "alias", "all", "allocate", "allocation",
+      "analysis", "and", "as", "assert", "assign", "assume", "at", "attribute", "bind", "binding", "by", "calc",
+      "case", "comment", "concern", "connect", "connection", "constant", "constraint", "crosses", "decide",
+      "def", "default", "defined", "dependency", "derived", "do", "doc", "else", "end", "entry", "enum",
+      "event", "exhibit", "exit", "expose", "false", "filter", "first", "flow", "for", "fork", "frame", "from",
+      "hastype", "if", "implies", "import", "in", "include", "individual", "inout", "interface", "istype",
+      "item", "join", "language", "library", "locale", "loop", "merge", "message", "meta", "metadata",
+      "nonunique", "not", "null", "objective", "occurrence", "of", "or", "ordered", "out", "package", "parallel",
+      "part", "perform", "port", "private", "protected", "public", "redefines", "ref", "references", "render",
+      "rendering", "rep", "require", "requirement", "return", "satisfy", "send", "snapshot", "specializes",
+      "stakeholder", "standard", "state", "subject", "subsets", "succession", "terminate", "then", "timeslice",
+      "to", "transition", "true", "until", "use", "variant", "variation", "verification", "verify", "via",
+      "view", "viewpoint", "when", "while", "xor"
+    ]);
+
+    function solariTemplate(name) {
+      return `package '${name}' {\n    // TODO: Solari model template\n}\n`;
+    }
+
+    function setNameStatus(message, cls) {
+      const el = document.getElementById("nameStatus");
+      el.textContent = message;
+      el.className = "name-status " + (cls || "muted");
+    }
+
+    function setStatus(message, isError) {
+      const el = document.getElementById("status");
+      el.textContent = message || "";
+      el.className = isError ? "error" : "";
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function highlightModelText(text) {
+      const pattern = /("([^"\\]|\\.)*")|(\/\/[^\n]*)|(\b[A-Za-z_][A-Za-z0-9_]*\b)/g;
+      let cursor = 0;
+      let output = "";
+      for (const match of text.matchAll(pattern)) {
+        const token = match[0];
+        const start = match.index || 0;
+        output += escapeHtml(text.slice(cursor, start));
+        if (token.startsWith("\"")) {
+          output += `<span class="tok-string">${escapeHtml(token)}</span>`;
+        } else if (token.startsWith("//")) {
+          output += `<span class="tok-comment">${escapeHtml(token)}</span>`;
+        } else if (SYSML_KEYWORDS.has(token)) {
+          output += `<span class="tok-keyword">${escapeHtml(token)}</span>`;
+        } else {
+          output += escapeHtml(token);
+        }
+        cursor = start + token.length;
+      }
+      output += escapeHtml(text.slice(cursor));
+      return output || " ";
+    }
+
+    function syncHighlight() {
+      const textarea = document.getElementById("modelText");
+      const highlighted = document.getElementById("highlightedText");
+      highlighted.innerHTML = highlightModelText(
+        textarea.value.endsWith("\n") ? textarea.value + " " : textarea.value || " "
+      );
+      highlighted.scrollTop = textarea.scrollTop;
+      highlighted.scrollLeft = textarea.scrollLeft;
+
+      const lineNums = document.getElementById("lineNums");
+      const count = (textarea.value.match(/\n/g) || []).length + 1;
+      const lines = [];
+      for (let i = 1; i <= count; i++) lines.push(i);
+      lineNums.textContent = lines.join("\n");
+      lineNums.scrollTop = textarea.scrollTop;
+    }
+
+    function showEditor(name) {
+      document.getElementById("modelText").value = solariTemplate(name);
+      syncHighlight();
+      document.getElementById("editorSection").style.display = "";
+      document.getElementById("saveBtn").disabled = false;
+    }
+
+    async function checkName() {
+      const name = document.getElementById("solariName").value.trim();
+      if (!name) {
+        setNameStatus("Enter a solari name first.", "error");
+        return;
+      }
+      if (!SOLARI_PROJECT_ID || !SOLARI_BRANCH_ID) {
+        setNameStatus("Project and branch are not configured yet — proceeding with template.", "muted");
+        showEditor(name);
+        return;
+      }
+
+      setNameStatus("Checking...", "muted");
+      document.getElementById("checkNameBtn").disabled = true;
+
+      try {
+        const qs = new URLSearchParams({
+          apiBase: SOLARI_API_BASE,
+          projectId: SOLARI_PROJECT_ID,
+          branchId: SOLARI_BRANCH_ID,
+          element: name
+        });
+        const res = await fetch("textual?" + qs.toString());
+        const body = await res.text();
+
+        if (res.ok) {
+          setNameStatus(`A solari named "${name}" already exists. Choose a different name.`, "error");
+          document.getElementById("editorSection").style.display = "none";
+        } else if (res.status === 404 && body.includes("Element not found")) {
+          setNameStatus(`"${name}" is available.`, "ok");
+          showEditor(name);
+        } else {
+          setNameStatus(`Could not verify name: ${body.slice(0, 120)}`, "muted");
+          showEditor(name);
+        }
+      } catch (err) {
+        setNameStatus(`Check failed: ${err.message} — proceeding with template.`, "muted");
+        showEditor(name);
+      } finally {
+        document.getElementById("checkNameBtn").disabled = false;
+      }
+    }
+
+    async function validateModel() {
+      setStatus("Validating...", false);
+      const res = await fetch("textual/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelText: document.getElementById("modelText").value })
+      });
+      const body = await res.text();
+      if (!res.ok) { setStatus(body, true); return; }
+      const payload = JSON.parse(body);
+      document.getElementById("diagnostics").textContent = diagnosticsText(payload);
+      setStatus(payload.ok ? "Validation passed." : "Validation failed.", !payload.ok);
+    }
+
+    async function save() {
+      const modelText = document.getElementById("modelText").value;
+      if (!modelText.trim()) { setStatus("Nothing to save.", true); return; }
+
+      const name = document.getElementById("solariName").value.trim();
+      setStatus("Saving...", false);
+      document.getElementById("saveBtn").disabled = true;
+
+      try {
+        const res = await fetch("textual/commit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            apiBase: SOLARI_API_BASE,
+            bearerToken: SOLARI_BEARER_TOKEN,
+            projectId: SOLARI_PROJECT_ID,
+            branchId: SOLARI_BRANCH_ID,
+            modelText,
+            commitMessage: `Solari: ${name}`
+          })
+        });
+        const body = await res.text();
+        if (!res.ok) {
+          try {
+            const payload = JSON.parse(body);
+            document.getElementById("diagnostics").textContent =
+              payload.validation
+                ? diagnosticsText(payload.validation)
+                : body;
+          } catch (_) {
+            document.getElementById("diagnostics").textContent = body;
+          }
+          setStatus("Save failed.", true);
+          return;
+        }
+        const payload = JSON.parse(body);
+        document.getElementById("diagnostics").textContent = JSON.stringify(payload.commit, null, 2);
+        setStatus("Saved.", false);
+      } catch (err) {
+        setStatus(err.message || String(err), true);
+      } finally {
+        document.getElementById("saveBtn").disabled = false;
+      }
+    }
+
+    function diagnosticsText(payload) {
+      if (!payload) return "";
+      const allIssues = Array.isArray(payload.issues) ? payload.issues : [];
+      if (!allIssues.length) return "No validation issues.";
+      return allIssues.map((issue) => {
+        const line = issue.line > 0 ? issue.line : "?";
+        const col  = issue.column > 0 ? issue.column : "?";
+        return `[${issue.severity}] ${line}:${col} ${issue.message}`;
+      }).join("\n");
+    }
+
+    // Pre-fill name from URL param ?name=...
+    function applyUrlParams() {
+      const params = new URLSearchParams(location.search);
+      const name = params.get("name");
+      if (name) {
+        document.getElementById("solariName").value = name;
+        checkName();
+      }
+    }
+
+    document.getElementById("validateBtn").addEventListener("click", () => validateModel().catch((err) => setStatus(err.message || String(err), true)));
+    document.getElementById("checkNameBtn").addEventListener("click", () => checkName());
+    document.getElementById("solariName").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") checkName();
+    });
+    document.getElementById("saveBtn").addEventListener("click", () => save());
+    document.getElementById("modelText").addEventListener("input", syncHighlight);
+    document.getElementById("modelText").addEventListener("scroll", syncHighlight);
+
+    syncHighlight();
+    applyUrlParams();
+  </script>
+</body>
+</html>
