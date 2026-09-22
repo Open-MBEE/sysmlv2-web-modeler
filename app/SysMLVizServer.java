@@ -1234,6 +1234,7 @@ public class SysMLVizServer {
 
   static JsonArray buildCommitChangePayload(Element rootElement) {
     JsonElementProcessingFacade facade = new JsonElementProcessingFacade();
+    facade.setIsIncludeDerived(true);
     facade.setTraversal(new Traversal(facade));
     facade.getTraversal().visit(rootElement);
     return facade.toJsonTree(true).getAsJsonArray();
