@@ -1,4 +1,5 @@
 # SysML v2 Visualization Service
+Copyright © 2026 Planetary Utilities Corp.
 
 This repository packages a standalone Java web service for SysML v2 graphical rendering and textual editing against a SysML v2 API backend.
 
@@ -976,6 +977,11 @@ If a large commit fails with an upstream timeout:
 
 If the UI loads but nothing renders:
 
-- verify the service can reach the backend
-- verify the selected project and branch exist
-- check `/logs` or the container logs for the detailed server trace
+## License
+
+Licensed under the Apache License, Version 2.0.
+
+See the [LICENSE](LICENSE) file for the full license terms.
+
+Unless otherwise noted, copyright in this project is held by Planetary Utilities Corp.
+
