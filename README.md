@@ -985,3 +985,7 @@ See the [LICENSE](LICENSE) file for the full license terms.
 
 Unless otherwise noted, copyright in this project is held by Planetary Utilities Corp.
 
+
+## Editor highlighting draft
+
+The text editor uses a native textarea with a syntax overlay, line numbers, bracket matching and a colors toggle. Validate remains authoritative. Run `node tests/js/code-editor.test.mjs` with Node 18 or newer. Browser integration is a draft pending standalone and embedded verification.

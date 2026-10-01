@@ -1,0 +1,15 @@
+.code-editor{--code-line:24px;position:relative;display:grid;grid-template-columns:48px minmax(0,1fr);height:560px;min-height:320px;max-height:1000px;resize:vertical;overflow:hidden;background:#fff;border-bottom:1px solid var(--border)}
+.code-gutter{overflow:hidden;background:#f3f6f8;border-right:1px solid var(--border);user-select:none;color:#73828e}
+.code-gutter pre{margin:0;padding:20px 10px;text-align:right;font:13px/var(--code-line) Consolas,"Liberation Mono",monospace;tab-size:2}
+.code-surface{position:relative;min-width:0;min-height:0;overflow:hidden}
+.code-surface #modelText,.code-surface #code-highlight{font:13px/var(--code-line) Consolas,"Liberation Mono",monospace;letter-spacing:normal;tab-size:2;padding:20px;margin:0;border:0;border-radius:0;white-space:pre;overflow-wrap:normal;word-break:normal;text-align:left;font-variant-ligatures:none}
+.code-surface #modelText{position:relative;z-index:2;display:block;width:100%;height:100%;min-height:0;resize:none;background:transparent;color:transparent;caret-color:#1f3647;-webkit-text-fill-color:transparent;overflow:auto}
+.code-surface #modelText::placeholder{color:#73828e;-webkit-text-fill-color:#73828e}
+.code-surface #modelText::selection{background:#a4cddd88}
+.code-surface #code-highlight{position:absolute;top:0;left:0;z-index:1;overflow:hidden;pointer-events:none;color:#234955}
+#code-current{position:absolute;left:0;right:0;height:var(--code-line);background:#f1f7fa;pointer-events:none}
+.code-status{display:flex;gap:14px;justify-content:space-between;flex-wrap:wrap;padding:9px 12px;border-top:1px solid var(--border);background:#f8fafb;color:var(--muted);font-size:11px}
+.code-status label{display:flex;align-items:center;gap:6px;font-size:11px}.code-status input{margin:0}
+.syntax-keyword{color:#9f235a}.syntax-comment{color:#65776b;font-style:italic}.syntax-string{color:#98621b}.syntax-number,.syntax-literal{color:#7844a1}.syntax-type,.syntax-declaration{color:#006b83}.syntax-operator,.syntax-bracket{color:#536581}.syntax-match{background:#bfe9ee;outline:1px solid #4a98a5;border-radius:2px}
+.code-plain #code-highlight,.code-composing #code-highlight{visibility:hidden}.code-plain #modelText,.code-composing #modelText{color:#234955;-webkit-text-fill-color:#234955}
+@media(forced-colors:active){.code-surface #code-highlight{visibility:hidden}.code-surface #modelText{color:CanvasText;-webkit-text-fill-color:CanvasText;caret-color:CanvasText}#code-current{display:none}}
