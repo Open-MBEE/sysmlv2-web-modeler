@@ -1652,13 +1652,30 @@ public class SysMLVizServer {
     List<String> viewParams,
     List<String> styleParams
   ) {
+    return renderResolvedSelection(sysml, resolvedElement, viewParams, styleParams, "svg");
+  }
+
+  static VizResult renderResolvedSelection(
+    SysMLInteractive sysml,
+    Element resolvedElement,
+    List<String> viewParams,
+    List<String> styleParams,
+    String format
+  ) {
+    if ("text".equals(format) || "txt".equals(format)) {
+      return VizResult.textResult(TEXTUAL_MODEL_SERVICE.serializeElementText(resolvedElement));
+    }
+    // Pilot returns exactly one representation. PUMLCODE requests source rather than SVG.
+    List<String> outputStyles = new ArrayList<>(styleParams);
+    outputStyles.removeIf("PUMLCODE"::equals);
+    if ("plantuml".equals(format) || "puml".equals(format)) outputStyles.add("PUMLCODE");
     int removedChainings = sanitizeBrokenFeatureChainings(resolvedElement);
     if (removedChainings > 0) {
       log("[render] sanitized " + removedChainings + " broken feature chaining entries");
     }
 
     return normalizeVizResult(
-      vizResolvedElement(sysml, resolvedElement, viewParams, styleParams)
+      vizResolvedElement(sysml, resolvedElement, viewParams, outputStyles)
     );
   }
 
@@ -3169,7 +3186,8 @@ public class SysMLVizServer {
               renderSysml,
               resolvedElement,
               viewParams,
-              styleParams
+              styleParams,
+              format
             );
             log("[render] viz complete");
             return result;
@@ -3422,7 +3440,7 @@ public class SysMLVizServer {
 
         VizResult vr = runWithTimeout(
           "[renderText] model render",
-          () -> TEXTUAL_MODEL_SERVICE.renderProcessedModel(modelText, elementName, viewParams, styleParams)
+          () -> TEXTUAL_MODEL_SERVICE.renderProcessedModel(modelText, elementName, viewParams, styleParams, format)
         );
         if (vr == null) {
           sendText(ex, 500, "text/plain; charset=utf-8", "VizResult was null");
@@ -3827,6 +3845,7 @@ public class SysMLVizServer {
 
         // Build a reload key from the JSON content so we don't rebuild if identical.
         // (You can swap this for a caller-provided key if you prefer.)
+        final String outputFormat = format;
         String loadKey = "json|" + Integer.toHexString(modelJson.hashCode());
 
         VizResult vr = runWithTimeout("[renderJson] model render", () -> {
@@ -3847,13 +3866,14 @@ public class SysMLVizServer {
               log("[renderJson] json model loaded");
             }
 
-            return renderLoadedSelection(
+            Element selected = resolveLoadedElement(sysml, elementName, "", "");
+            if (selected == null) throw new IllegalArgumentException("Element not found: " + elementName);
+            return renderResolvedSelection(
               sysml,
-              elementName,
-              "",
-              "",
+              selected,
               viewParams,
-              styleParams
+              styleParams,
+              outputFormat
             );
           }
         });

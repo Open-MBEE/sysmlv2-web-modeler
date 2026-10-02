@@ -985,3 +985,9 @@ See the [LICENSE](LICENSE) file for the full license terms.
 
 Unless otherwise noted, copyright in this project is held by Planetary Utilities Corp.
 
+
+### Render format regression checks
+
+`plantuml`/`puml` request PlantUML source from Pilot. `text`/`txt` serialize the selected element as SysML source (including the existing reconstruction warning when serialization falls back); graphical view and style options apply to SVG and PlantUML.
+
+Against a running server, run `python3 tests/http/render_formats.py http://localhost:8088`. This read-only check exercises SVG, PlantUML and text plus their aliases. `tests/java/SysMLVizServerRenderFormatsHarness.java` checks selected-element output and draft format forwarding; compile it with the app and Pilot jars, then run with the same library configuration as the server.
