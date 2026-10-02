@@ -595,6 +595,16 @@ final class TextualModelService {
     List<String> viewParams,
     List<String> styleParams
   ) throws Exception {
+    return renderProcessedModel(modelText, elementName, viewParams, styleParams, "svg");
+  }
+
+  VizResult renderProcessedModel(
+    String modelText,
+    String elementName,
+    List<String> viewParams,
+    List<String> styleParams,
+    String format
+  ) throws Exception {
     synchronized (SysMLVizServer.SYSML_LOCK) {
       SysMLInteractive textualSysml = SysMLInteractive.createInstance();
       SysMLVizServer.configureLibraries(textualSysml);
@@ -618,7 +628,8 @@ final class TextualModelService {
         textualSysml,
         resolvedElement,
         viewParams,
-        styleParams
+        styleParams,
+        format
       );
     }
   }
