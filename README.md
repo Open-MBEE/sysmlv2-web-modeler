@@ -986,6 +986,11 @@ See the [LICENSE](LICENSE) file for the full license terms.
 Unless otherwise noted, copyright in this project is held by Planetary Utilities Corp.
 
 
+## Editor highlighting draft
+
+The text editor uses a native textarea with a syntax overlay, line numbers, bracket matching and a colors toggle. Validate remains authoritative. Run `node tests/js/code-editor.test.mjs` with Node 18 or newer. Browser integration is a draft pending standalone and embedded verification.
+
+Editor verification: run `node --test tests/js/code-editor.test.mjs` and `node --check app/static/code-editor.js`. Browser checks cover standalone and embedded configuration, native undo and Tab navigation, line/cursor tracking, forced-colors fallback, synthetic composition events and unchanged validation payloads. Actual OS input-method composition and screen-reader behavior still require manual testing. At a 390px viewport, the existing page header/forms overflow horizontally in both upstream and this editor; the editor surface itself stays within its container.
 ### Render format regression checks
 
 `plantuml`/`puml` request PlantUML source from Pilot. `text`/`txt` serialize the selected element as SysML source (including the existing reconstruction warning when serialization falls back); graphical view and style options apply to SVG and PlantUML.
