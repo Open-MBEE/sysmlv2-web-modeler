@@ -41,7 +41,6 @@ FROM eclipse-temurin:21-jdk AS build
 WORKDIR /opt/app
 
 COPY app/ /opt/app/
-COPY openmbee-export/app/static/ /opt/app/static/
 COPY .pilot-version /opt/app/.pilot-version
 COPY --from=pilot-build /opt/pilot /opt/pilot
 COPY --from=pilot-build /opt/sysml.library /opt/sysml.library
