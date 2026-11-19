@@ -5,6 +5,7 @@ ARG PILOT_REPO=https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation
 WORKDIR /tmp
 
 COPY .pilot-version /tmp/.pilot-version
+COPY patches/pilot-missing-reference-id.patch /tmp/pilot-missing-reference-id.patch
 
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
@@ -19,7 +20,7 @@ RUN set -e; \
     git remote add origin "${PILOT_REPO}"; \
     git fetch --depth=1 origin "${PILOT_REF}"; \
     git checkout FETCH_HEAD; \
-    cd /tmp/pilot-src; \
+    git apply --ignore-space-change /tmp/pilot-missing-reference-id.patch; \
     mvn clean package -DskipTests -B -q; \
     mkdir -p /opt/pilot; \
     find /tmp/pilot-src \
@@ -56,6 +57,7 @@ WORKDIR /opt/app
 COPY --from=build /opt/app /opt/app
 COPY --from=build /opt/pilot /opt/pilot
 COPY --from=build /opt/sysml.library /opt/sysml.library
+COPY LICENSE-EPL LICENSE-LGPL LICENSE-GPL /opt/pilot-licenses/
 
 EXPOSE 8088
 ENV PORT=8088

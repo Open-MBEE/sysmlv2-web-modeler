@@ -413,5 +413,8 @@ class SysMLVizSmokeTests(unittest.TestCase):
     def test_render_formats(self):
         self.run_java_class('SysMLVizServerRenderFormatsHarness')
 
+    def test_pilot_reference_resolver_handles_missing_ids(self):
+        self.run_java_class("PilotMissingReferenceIdHarness")
+
 if __name__ == "__main__":
     unittest.main()
