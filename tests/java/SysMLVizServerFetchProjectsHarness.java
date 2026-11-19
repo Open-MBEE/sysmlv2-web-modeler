@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class SysMLVizServerFetchProjectsHarness {
 
@@ -12,7 +13,9 @@ public class SysMLVizServerFetchProjectsHarness {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         int port = server.getAddress().getPort();
 
+        AtomicReference<String> authorization = new AtomicReference<>();
         server.createContext("/projects", exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
             byte[] body = (
                 "{\"projects\":[" +
                 "{\"@id\":\"proj-1\",\"name\":\"Flashlight\"}," +
@@ -26,7 +29,14 @@ public class SysMLVizServerFetchProjectsHarness {
 
         server.start();
         try {
-            JsonArray projects = SysMLVizServer.fetchProjects("http://localhost:" + port + "/", "Bearer test-token");
+            String apiBase = "http://localhost:" + port + "/";
+            JsonArray projects = SysMLVizServer.fetchProjects(apiBase, "Bearer test-token");
+            assertString("forwarded authorization", "Bearer test-token", authorization.get());
+
+            JsonArray anonymousProjects = SysMLVizServer.fetchProjects(apiBase, "");
+            if (authorization.get() != null || !projects.equals(anonymousProjects)) {
+                throw new AssertionError("Anonymous project lookup must omit Authorization and return the same projects");
+            }
             if (projects.size() != 2) {
                 throw new AssertionError("Expected 2 projects, got " + projects.size());
             }
