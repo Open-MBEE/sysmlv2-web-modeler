@@ -2268,12 +2268,19 @@ public class SysMLVizServer {
     return documents;
   }
 
+  private static HttpRequest.Builder readRequest(String bearerToken) {
+    HttpRequest.Builder builder = HttpRequest.newBuilder();
+    if (bearerToken != null && !bearerToken.isBlank()) {
+      builder.header("Authorization", bearerToken);
+    }
+    return builder;
+  }
+
   static String resolveBranchHeadCommitId(String apiBaseClean, String projectId, String branchId, String bearerToken) throws Exception {
-    HttpRequest branchRequest = HttpRequest.newBuilder()
+    HttpRequest branchRequest = readRequest(bearerToken)
       .uri(URI.create(apiBaseClean + "/projects/" + projectId + "/branches/" + branchId))
       .timeout(java.time.Duration.ofSeconds(30))
       .header("Accept", "application/json")
-      .header("Authorization", bearerToken)
       .header("User-Agent", "sysmlv2viz-elements/1.0")
       .GET()
       .build();
@@ -2335,11 +2342,10 @@ public class SysMLVizServer {
       if (nextCursor != null && !nextCursor.isBlank()) {
         url += "?page.after=" + URLEncoder.encode(nextCursor, StandardCharsets.UTF_8);
       }
-      HttpRequest elementsRequest = HttpRequest.newBuilder()
+      HttpRequest elementsRequest = readRequest(bearerToken)
         .uri(URI.create(url))
         .timeout(java.time.Duration.ofSeconds(120))
         .header("Accept", "application/json")
-        .header("Authorization", bearerToken)
         .header("User-Agent", "sysmlv2viz-elements/1.0")
         .GET()
         .build();
@@ -2448,15 +2454,11 @@ public class SysMLVizServer {
       throw new IllegalArgumentException("Missing apiBase");
     }
     String resolvedToken = firstNonBlank(bearerToken);
-    if (resolvedToken.isBlank()) {
-      throw new IllegalArgumentException("Missing bearer token");
-    }
 
-    HttpRequest request = HttpRequest.newBuilder()
+    HttpRequest request = readRequest(resolvedToken)
       .uri(URI.create(resolvedApiBase.replaceAll("/+$", "") + "/projects"))
       .timeout(java.time.Duration.ofSeconds(60))
       .header("Accept", "application/json")
-      .header("Authorization", resolvedToken)
       .header("User-Agent", "sysmlv2viz-project-list/1.0")
       .GET()
       .build();
@@ -2479,15 +2481,11 @@ public class SysMLVizServer {
       throw new IllegalArgumentException("Missing projectId");
     }
     String resolvedToken = firstNonBlank(bearerToken);
-    if (resolvedToken.isBlank()) {
-      throw new IllegalArgumentException("Missing bearer token");
-    }
 
-    HttpRequest request = HttpRequest.newBuilder()
+    HttpRequest request = readRequest(resolvedToken)
       .uri(URI.create(resolvedApiBase.replaceAll("/+$", "") + "/projects/" + projectId + "/branches"))
       .timeout(java.time.Duration.ofSeconds(60))
       .header("Accept", "application/json")
-      .header("Authorization", resolvedToken)
       .header("User-Agent", "sysmlv2viz-branch-list/1.0")
       .GET()
       .build();
@@ -2535,11 +2533,10 @@ public class SysMLVizServer {
     String apiBaseClean = resolvedApiBase.replaceAll("/+$", "");
     JsonArray branches = new JsonArray();
     for (String branchId : branchIds) {
-      HttpRequest detailRequest = HttpRequest.newBuilder()
+      HttpRequest detailRequest = readRequest(resolvedToken)
         .uri(URI.create(apiBaseClean + "/projects/" + projectId + "/branches/" + branchId))
         .timeout(java.time.Duration.ofSeconds(30))
         .header("Accept", "application/json")
-        .header("Authorization", resolvedToken)
         .header("User-Agent", "sysmlv2viz-branch-list/1.0")
         .GET()
         .build();
@@ -2587,11 +2584,10 @@ public class SysMLVizServer {
   }
 
   static JsonArray fetchDefaultBranchFromProject(String apiBase, String projectId, String bearerToken) throws Exception {
-    HttpRequest req = HttpRequest.newBuilder()
+    HttpRequest req = readRequest(bearerToken)
       .uri(URI.create(apiBase + "/projects/" + projectId))
       .timeout(java.time.Duration.ofSeconds(60))
       .header("Accept", "application/json")
-      .header("Authorization", bearerToken)
       .header("User-Agent", "sysmlv2viz-branch-list/1.0")
       .GET()
       .build();
@@ -3690,10 +3686,6 @@ public class SysMLVizServer {
           sendText(ex, 400, "text/plain; charset=utf-8", "Missing branchId");
           return;
         }
-        if (bearerToken.isBlank()) {
-          sendText(ex, 400, "text/plain; charset=utf-8", "Missing bearer token");
-          return;
-        }
         String elementsBody = fetchElementsForBranch(apiBase, projectId, branchId, bearerToken);
         log("[elements] fetch complete: bodyLength=" + elementsBody.length());
         byte[] responseBytes = elementsBody.getBytes(StandardCharsets.UTF_8);
@@ -3742,10 +3734,6 @@ public class SysMLVizServer {
         }
         if (branchId.isBlank()) {
           sendText(ex, 400, "text/plain; charset=utf-8", "Missing branchId");
-          return;
-        }
-        if (bearerToken.isBlank()) {
-          sendText(ex, 400, "text/plain; charset=utf-8", "Missing bearer token");
           return;
         }
 
