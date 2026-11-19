@@ -22,13 +22,14 @@ SysML v2 Pilot Implementation
                placed at /opt/pilot/*.jar in the runtime image.
 
   This product uses the SysML v2 Pilot Implementation as a library, on
-  the Java classpath, without modification. Per LGPL-3.0 §4, the
+  the Java classpath, with the missing reference ID patch applied. Per LGPL-3.0 §4, the
   bundled library may be replaced by the user with a modified version:
   mount or copy alternative jars over /opt/pilot/ in the runtime image.
 
   See LICENSE-LGPL for the LGPL-3.0 license text. The corresponding
   source for the bundled jars is the upstream repository at the commit
-  pinned in this repository's `.pilot-version` file.
+  pinned in this repository's `.pilot-version` file, together with
+  patches/pilot-missing-reference-id.patch.
 
   This product also bundles the SysML/KerML standard library files
   found at /opt/sysml.library/ in the runtime image. These files are

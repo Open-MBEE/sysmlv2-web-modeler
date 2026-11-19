@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Treat references without an @id as unresolved in Pilot 2026-02.
+diff --git a/org.omg.sysml/src/org/omg/sysml/util/repository/EMFModelRefresher.java b/org.omg.sysml/src/org/omg/sysml/util/repository/EMFModelRefresher.java
+index 802abea..d6e8da8 100644
+--- a/org.omg.sysml/src/org/omg/sysml/util/repository/EMFModelRefresher.java
++++ b/org.omg.sysml/src/org/omg/sysml/util/repository/EMFModelRefresher.java
+@@ -243,6 +243,10 @@ public class EMFModelRefresher {
+ 	private Optional<EObject> resolveReference(Object referenceValue, boolean isContainment) {
+ 		if (referenceValue instanceof Map referenceObjectMap) {
+ 			Object refUUID = referenceObjectMap.get("@id");
++			if (refUUID == null) {
++				issues.add(new Issue("Could not resolve reference without @id"));
++				return Optional.empty();
++			}
+ 			Element referencedElement = model.getElement(UUID.fromString(refUUID.toString()));
+ 			EObject referencedLangElement = isContainment? transform(referencedElement) : tracker.get(UUID.fromString(refUUID.toString()));
+ 			return Optional.ofNullable(referencedLangElement);

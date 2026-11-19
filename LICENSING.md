@@ -29,11 +29,10 @@ The SysML v2 Pilot Implementation
 is licensed under [LGPL-3.0-or-later](LICENSE-LGPL) with a dual
 GPL-3.0-or-later option. We use it under the **LGPL** branch.
 
-The Pilot is **not modified** in this repository. The Dockerfile
-clones it at the upstream commit pinned in
-[`.pilot-version`](.pilot-version) and runs the upstream Maven/Tycho
-build to produce the jars that ship in the Docker image at
-`/opt/pilot/`.
+The Dockerfile clones the upstream revision pinned in
+[`.pilot-version`](.pilot-version), applies
+[the missing reference ID patch](patches/pilot-missing-reference-id.patch),
+and builds the jars that ship in the Docker image at `/opt/pilot/`.
 
 ### LGPL-3.0 compliance
 
@@ -41,7 +40,7 @@ LGPL-3.0 §4 requires that users be able to replace the bundled library
 with a modified version. We satisfy this in two ways:
 
 1. **Replaceable at runtime.** The Pilot jars sit on the classpath as
-   separate, unmodified files in `/opt/pilot/`. To use a modified
+   separate files in `/opt/pilot/`. To use a modified
    version, mount or copy your own jars over `/opt/pilot/` and
    restart the container:
 
@@ -50,13 +49,11 @@ with a modified version. We satisfy this in two ways:
    ```
 
 2. **Replaceable at build time.** The Dockerfile accepts
-   `--build-arg PILOT_REF=<git-ref>` and
    `--build-arg PILOT_REPO=<git-url>` so anyone can rebuild the
    image against a fork or different commit of the Pilot.
 
-The corresponding LGPL source is publicly available at the upstream
-repository, at the commit recorded in `.pilot-version`. We do not
-need to redistribute that source ourselves; we link to it.
+The corresponding source is the upstream revision in `.pilot-version` with the
+patch above applied. The patch is distributed under LGPL-3.0-or-later.
 
 ### Bundled SysML/KerML standard libraries
 
