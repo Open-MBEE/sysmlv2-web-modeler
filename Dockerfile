@@ -57,7 +57,7 @@ WORKDIR /opt/app
 COPY --from=build /opt/app /opt/app
 COPY --from=build /opt/pilot /opt/pilot
 COPY --from=build /opt/sysml.library /opt/sysml.library
-COPY LICENSE-LGPL LICENSE-GPL /opt/pilot-licenses/
+COPY LICENSE-EPL LICENSE-LGPL LICENSE-GPL /opt/pilot-licenses/
 
 EXPOSE 8088
 ENV PORT=8088

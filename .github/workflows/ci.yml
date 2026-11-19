@@ -38,6 +38,8 @@ jobs:
           docker run -d --name modeler-ci -p 127.0.0.1:8088:8088 modeler:ci
           mkdir -p pilot-jars
           docker cp modeler-ci:/opt/pilot/. pilot-jars/
+          docker cp modeler-ci:/opt/sysml.library "$RUNNER_TEMP/"
+          export SYSML_LIBRARY_PATH="$RUNNER_TEMP/sysml.library"
           sudo apt-get update
           sudo apt-get install -y graphviz
           python3 -m unittest discover -s tests -v

@@ -6,4 +6,4 @@
 #
 # Update this value when upgrading the pilot dependency.
 # The corresponding internal mg-jar release is tracked in build.yaml.
-2026-02
+2026-09.1
