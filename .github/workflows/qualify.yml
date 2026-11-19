@@ -30,7 +30,6 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-          : "${SYSML_API_TOKEN:?Set the qualification environment secret}"
           : "${SYSML_TEST_PROJECT_ID:?Set the qualification project ID}"
           : "${SYSML_TEST_BRANCH_ID:?Set the qualification branch ID}"
           image="ghcr.io/${GITHUB_REPOSITORY,,}@$DIGEST"

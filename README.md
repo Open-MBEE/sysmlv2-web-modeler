@@ -345,7 +345,7 @@ The following example shows how to look up a project and branch by name and then
 
 `GET /render` does not accept a bearer token. The Pilot library's internal `load()` call handles backend authentication using the API base URL directly. `SYSML_API_TOKEN` is used only by the server-side Python bridge scripts that handle mutation operations (project creation, replacement commit) — it is not involved in model loading or rendering.
 
-The bearer token you pass to `POST /projects` and `POST /branches` is forwarded to the remote SysML API for those calls only.
+Project, branch, and element lookups forward a bearer token when supplied. Anonymous lookups omit the Authorization header.
 
 ### Example
 
@@ -989,9 +989,9 @@ For embedded deployments, restrict access to the service through the embedding p
 Maintainers publish by tagging a CI-green commit on `main` with a `vMAJOR.MINOR.PATCH`
 tag. Set the GHCR package visibility to public for anonymous pulls. Run **Qualify
 published image** with the release digest. Configure the `starforge-qualification`
-environment with a scoped `SYSML_API_TOKEN` secret and
+environment with
 `SYSML_TEST_PROJECT_ID` and `SYSML_TEST_BRANCH_ID` variables for a populated test
-branch. The workflow performs read-only checks. Verify an editor commit
+branch. The workflow performs read-only checks and can access experimental Starforge anonymously. Set the optional `SYSML_API_TOKEN` secret if the backend requires it. Verify an editor commit
 separately on a disposable branch before cutting over deployments.
 
 ## License
