@@ -977,6 +977,23 @@ If a large commit fails with an upstream timeout:
 
 If the UI loads but nothing renders:
 
+## GitHub releases
+
+Open-MBEE is the source for new releases after Planetary Utilities' v0.5.
+Use the versioned image or immutable image digest from the
+[GitHub release](https://github.com/Open-MBEE/sysmlv2-web-modeler/releases).
+The image is published as `ghcr.io/open-mbee/sysmlv2-web-modeler`.
+Set `SYSML_API_BASE` and supply credentials at runtime for your deployment.
+For embedded deployments, restrict access to the service through the embedding proxy.
+
+Maintainers publish by tagging a CI-green commit on `main` with a `vMAJOR.MINOR.PATCH`
+tag. Set the GHCR package visibility to public for anonymous pulls. Run **Qualify
+published image** with the release digest. Configure the `starforge-qualification`
+environment with a scoped `SYSML_API_TOKEN` secret and
+`SYSML_TEST_PROJECT_ID` and `SYSML_TEST_BRANCH_ID` variables for a populated test
+branch. The workflow performs read-only checks. Verify an editor commit
+separately on a disposable branch before cutting over deployments.
+
 ## License
 
 Licensed under the Apache License, Version 2.0.

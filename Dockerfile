@@ -61,7 +61,5 @@ EXPOSE 8088
 ENV PORT=8088
 ENV PYTHON_BIN=python3
 ENV SYSML_LIBRARY_PATH=/opt/sysml.library
-ENV SYSML_API_BASE=https://experimental.starforge.app/
-ENV SYSML_API_TOKEN="Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJmbGV4by1tbXMtYXVkaWVuY2UiLCJpc3MiOiJodHRwOi8vZmxleG8tbW1zLXNlcnZpY2VzIiwidXNlcm5hbWUiOiJ1c2VyMDEiLCJncm91cHMiOlsic3VwZXJfYWRtaW5zIl0sImV4cCI6MTgwMTIwOTYwMH0.xv6cRFq8KgtkuBJYGdwJSvgpktJUcWvsivSn9UJmwAk"
 
 CMD ["bash", "-lc", "java -cp '/opt/app:/opt/pilot/*' SysMLVizServer"]
