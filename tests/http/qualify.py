@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -14,8 +15,12 @@ def request(path, payload=None):
         data=data,
         headers={"Content-Type": "application/json"},
     )
-    with urlopen(req, timeout=120) as response:
-        return response.read().decode()
+    try:
+        with urlopen(req, timeout=120) as response:
+            return response.read().decode()
+    except HTTPError as error:
+        detail = error.read(2048).decode(errors="replace")
+        raise RuntimeError(f"{req.get_method()} {path} returned {error.code}: {detail}") from error
 
 
 def main():
