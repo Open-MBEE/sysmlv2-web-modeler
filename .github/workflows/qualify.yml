@@ -38,7 +38,11 @@ jobs:
           for mode in standalone embedded; do
             docker run -d --name modeler-candidate -p 127.0.0.1:8088:8088 \
               -e SYSML_API_BASE -e SYSML_API_TOKEN -e "SYSML_UI_MODE=$mode" "$image"
-            curl --fail --silent --show-error --retry 20 --retry-connrefused http://localhost:8088/health
+            if ! curl --fail --silent --show-error --retry 30 --retry-all-errors \
+              --retry-delay 1 --max-time 2 --retry-max-time 45 http://localhost:8088/health; then
+              docker logs modeler-candidate
+              exit 1
+            fi
             python3 tests/http/qualify.py "$mode"
             python3 tests/http/render_formats.py
             docker rm -f modeler-candidate
