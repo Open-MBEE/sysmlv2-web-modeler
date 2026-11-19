@@ -20,7 +20,7 @@ RUN set -e; \
     git remote add origin "${PILOT_REPO}"; \
     git fetch --depth=1 origin "${PILOT_REF}"; \
     git checkout FETCH_HEAD; \
-    git apply /tmp/pilot-missing-reference-id.patch; \
+    git apply --ignore-space-change /tmp/pilot-missing-reference-id.patch; \
     mvn clean package -DskipTests -B -q; \
     mkdir -p /opt/pilot; \
     find /tmp/pilot-src \
