@@ -159,7 +159,7 @@ class SysMLVizSmokeTests(unittest.TestCase):
         self.assertEqual(headers.get_content_type(), "application/json")
         payload = json.loads(body)
         self.assertEqual(payload["apiBase"], "http://sysml-api:8080")
-        self.assertEqual(payload["apiToken"], "Bearer test-token")
+        self.assertNotIn("apiToken", payload)
         self.assertEqual(payload["uiMode"], "standalone")
         self.assertTrue(payload["showApiBaseField"])
         self.assertTrue(payload["showBearerTokenField"])
@@ -458,6 +458,8 @@ class SysMLVizSmokeTests(unittest.TestCase):
     def test_root_namespace_split_groups_interleaved_documents(self):
         self.run_java_class("SysMLVizServerRootNamespaceSplitHarness")
 
+    def test_render_formats(self):
+        self.run_java_class('SysMLVizServerRenderFormatsHarness')
 
 if __name__ == "__main__":
     unittest.main()

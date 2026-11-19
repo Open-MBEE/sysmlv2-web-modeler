@@ -453,10 +453,6 @@ public class SysMLVizServer {
     if (!apiBase.isBlank()) {
       json.addProperty("apiBase", apiBase);
     }
-    String apiToken = firstNonBlank(ENV_DEFAULTS.get("apiToken"));
-    if (!apiToken.isBlank()) {
-      json.addProperty("apiToken", apiToken);
-    }
     json.addProperty("uiMode", UI_MODE);
     json.addProperty("showApiBaseField", !"embedded".equals(UI_MODE));
     json.addProperty("showBearerTokenField", !"embedded".equals(UI_MODE));

@@ -329,7 +329,6 @@
     // ── Hardcoded Flexo connection ─────────────────────────────────────────────
     // Change these constants to target a different project or branch.
     const SOLARI_API_BASE     = "https://experimental.starforge.app/";
-    const SOLARI_BEARER_TOKEN = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJmbGV4by1tbXMtYXVkaWVuY2UiLCJpc3MiOiJodHRwOi8vZmxleG8tbW1zLXNlcnZpY2VzIiwidXNlcm5hbWUiOiJ1c2VyMDEiLCJncm91cHMiOlsic3VwZXJfYWRtaW5zIl0sImV4cCI6MTgwMTIwOTYwMH0.xv6cRFq8KgtkuBJYGdwJSvgpktJUcWvsivSn9UJmwAk";
     const SOLARI_PROJECT_ID   = ""; // TODO: set to target project UUID
     const SOLARI_BRANCH_ID    = ""; // TODO: set to target branch UUID
     // ──────────────────────────────────────────────────────────────────────────
@@ -491,7 +490,6 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             apiBase: SOLARI_API_BASE,
-            bearerToken: SOLARI_BEARER_TOKEN,
             projectId: SOLARI_PROJECT_ID,
             branchId: SOLARI_BRANCH_ID,
             modelText,
