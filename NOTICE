@@ -15,25 +15,15 @@ SysML v2 Pilot Implementation
 -----------------------------
 
   Upstream:    https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation
-  License:     LGPL-3.0-or-later (with dual GPL-3.0-or-later option)
-  Used as:     Library on classpath. Source jars are produced by the
-               upstream Maven/Tycho build inside this repository's
-               Dockerfile (stage `pilot-build`). The resulting jars are
-               placed at /opt/pilot/*.jar in the runtime image.
+  License:     EPL-2.0 for Pilot 2026-09.1 and the missing reference ID patch.
+               See LICENSE-EPL.
+  Used as:     The Dockerfile builds JARs from the upstream revision pinned
+               in .pilot-version with patches/pilot-missing-reference-id.patch.
+               The image includes these JARs and the upstream standard libraries.
 
-  This product uses the SysML v2 Pilot Implementation as a library, on
-  the Java classpath, without modification. Per LGPL-3.0 §4, the
-  bundled library may be replaced by the user with a modified version:
-  mount or copy alternative jars over /opt/pilot/ in the runtime image.
-
-  See LICENSE-LGPL for the LGPL-3.0 license text. The corresponding
-  source for the bundled jars is the upstream repository at the commit
-  pinned in this repository's `.pilot-version` file.
-
-  This product also bundles the SysML/KerML standard library files
-  found at /opt/sysml.library/ in the runtime image. These files are
-  redistributed verbatim from the upstream Pilot Implementation
-  repository under LGPL-3.0-or-later.
+  The existing InheritKey.java override is derived from an earlier Pilot
+  revision and retains its LGPL-3.0-or-later notice. See LICENSE-LGPL and
+  LICENSE-GPL.
 
 
 Eclipse Temurin (OpenJDK)
@@ -88,4 +78,4 @@ SysML v2 Submission Team materials
   The SysML v2 specification, KerML specification, and the standard
   library content are products of the Object Management Group (OMG)
   SysML v2 Submission Team. Distribution of the standard library files
-  follows the upstream Pilot Implementation under LGPL-3.0-or-later.
+  follows the upstream Pilot revision bundled with the image.
