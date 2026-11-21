@@ -24,7 +24,13 @@ jobs:
       - id: image
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -34,7 +40,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ steps.image.outputs.name }}:${{ github.ref_name }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.ref_name }}
+            docker.io/openmbee/sysml-modeler:${{ github.ref_name }}
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha
       - name: Create GitHub Release
@@ -44,5 +52,7 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
-          printf 'Container image: `%s:%s`\n\nImmutable reference: `%s@%s`\n' "$IMAGE" "$GITHUB_REF_NAME" "$IMAGE" "$DIGEST" > release-notes.md
+          for registry_image in "$IMAGE" docker.io/openmbee/sysml-modeler; do
+            printf -- '- `%s:%s` (`%s@%s`)\n' "$registry_image" "$GITHUB_REF_NAME" "$registry_image" "$DIGEST"
+          done > release-notes.md
           gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --notes-file release-notes.md

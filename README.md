@@ -982,9 +982,14 @@ If the UI loads but nothing renders:
 Open-MBEE is the source for new releases after Planetary Utilities' v0.5.
 Use the versioned image or immutable image digest from the
 [GitHub release](https://github.com/Open-MBEE/sysmlv2-web-modeler/releases).
-The image is published as `ghcr.io/open-mbee/sysmlv2-web-modeler`.
+The release workflow builds the image once and publishes the Git tag to both
+`ghcr.io/open-mbee/sysmlv2-web-modeler` and `docker.io/openmbee/sysml-modeler`.
 Set `SYSML_API_BASE` and supply credentials at runtime for your deployment.
 For embedded deployments, restrict access to the service through the embedding proxy.
+
+Before publishing, configure the GitHub repository's Actions variable
+`DOCKERHUB_USERNAME` and Actions secret `DOCKERHUB_TOKEN`. The Docker Hub token
+must have write access to `openmbee/sysml-modeler`.
 
 Maintainers publish by tagging a CI-green commit on `main` with a `vMAJOR.MINOR.PATCH`
 tag. Set the GHCR package visibility to public for anonymous pulls. Run **Qualify
