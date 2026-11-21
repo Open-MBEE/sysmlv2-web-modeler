@@ -9,6 +9,18 @@ COPY patches/pilot-missing-reference-id.patch /tmp/pilot-missing-reference-id.pa
 
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
+# Rebuild the API client that Pilot vendors with fixed Gson and OkHttp versions.
+RUN set -e; \
+    git init /tmp/sysml-api-client; \
+    cd /tmp/sysml-api-client; \
+    git remote add origin https://github.com/Systems-Modeling/SysML-v2-API-Java-Client.git; \
+    git fetch --depth=1 origin 09be58a2de0bb44fa8f4c9deb2537a0bdd822068; \
+    git checkout FETCH_HEAD; \
+    sed -i '0,/<plugins>/s|<plugins>|<plugins><plugin><artifactId>maven-assembly-plugin</artifactId><configuration><descriptorRefs><descriptorRef>jar-with-dependencies</descriptorRef></descriptorRefs></configuration></plugin>|' pom.xml; \
+    mvn -B -q -Dmaven.test.skip=true -Djava.version=8 -Dgson-version=2.13.2 -Dokhttp-version=4.12.0 \
+      compile jar:jar org.apache.maven.plugins:maven-assembly-plugin:3.7.1:single; \
+    cp target/sysml-v2-api-client-*-jar-with-dependencies.jar /tmp/sysml-v2-api-client-all.jar
+
 RUN set -e; \
     PILOT_REF="$(grep -v '^#' /tmp/.pilot-version | tr -d '[:space:]')"; \
     if [ -z "${PILOT_REF}" ]; then \
@@ -21,6 +33,7 @@ RUN set -e; \
     git fetch --depth=1 origin "${PILOT_REF}"; \
     git checkout FETCH_HEAD; \
     git apply --ignore-space-change /tmp/pilot-missing-reference-id.patch; \
+    cp /tmp/sysml-v2-api-client-all.jar org.omg.sysml/lib/sysml-v2-api-client-all.jar; \
     mvn clean package -DskipTests -B -q; \
     mkdir -p /opt/pilot; \
     find /tmp/pilot-src \
@@ -28,6 +41,7 @@ RUN set -e; \
       ! -name "*-sources.jar" \
       ! -name "*-javadoc.jar" \
       ! -name "*-all.jar" \
+      ! -name "guava-*.jar" \
       ! -name "*.source_*.jar" \
       ! -name "*.source-*.jar" \
       ! -name "*.feature*.jar" \
@@ -36,6 +50,9 @@ RUN set -e; \
       ! -path "*/test-classes/*" \
       -exec cp -n {} /opt/pilot/ \; ; \
     cp -r /tmp/pilot-src/sysml.library /opt/sysml.library
+
+RUN mvn -B -q org.apache.maven.plugins:maven-dependency-plugin:3.9.0:copy \
+      -Dartifact=com.google.guava:guava:33.7.2-jre -DoutputDirectory=/opt/pilot
 
 FROM eclipse-temurin:21-jdk AS build
 
